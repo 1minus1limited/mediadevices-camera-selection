@@ -1,29 +1,34 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 module.exports={
-  "_from": "@twilio/sip.js@^0.7.7",
+  "_args": [
+    [
+      "@twilio/sip.js@0.7.7",
+      "/Users/michael/Projects/vetsdirect/resources/example/mediadevices-camera-selection"
+    ]
+  ],
+  "_from": "@twilio/sip.js@0.7.7",
   "_id": "@twilio/sip.js@0.7.7",
   "_inBundle": false,
   "_integrity": "sha1-z/UPZvmyldRvIZc3tyeAx9Dm31I=",
   "_location": "/@twilio/sip.js",
   "_phantomChildren": {},
   "_requested": {
-    "type": "range",
+    "type": "version",
     "registry": true,
-    "raw": "@twilio/sip.js@^0.7.7",
+    "raw": "@twilio/sip.js@0.7.7",
     "name": "@twilio/sip.js",
     "escapedName": "@twilio%2fsip.js",
     "scope": "@twilio",
-    "rawSpec": "^0.7.7",
+    "rawSpec": "0.7.7",
     "saveSpec": null,
-    "fetchSpec": "^0.7.7"
+    "fetchSpec": "0.7.7"
   },
   "_requiredBy": [
     "/twilio-video"
   ],
   "_resolved": "https://registry.npmjs.org/@twilio/sip.js/-/sip.js-0.7.7.tgz",
-  "_shasum": "cff50f66f9b295d46f219737b72780c7d0e6df52",
-  "_spec": "@twilio/sip.js@^0.7.7",
-  "_where": "/Users/pnash/projects/mediadevices-camera-selection/node_modules/twilio-video",
+  "_spec": "0.7.7",
+  "_where": "/Users/michael/Projects/vetsdirect/resources/example/mediadevices-camera-selection",
   "author": {
     "name": "OnSIP",
     "email": "developer@onsip.com",
@@ -35,13 +40,11 @@ module.exports={
   "bugs": {
     "url": "https://github.com/onsip/SIP.js/issues"
   },
-  "bundleDependencies": false,
   "contributors": [
     {
       "url": "https://github.com/onsip/SIP.js/blob/master/THANKS.md"
     }
   ],
-  "deprecated": false,
   "description": "A simple, intuitive, and powerful JavaScript signaling library",
   "devDependencies": {
     "beefy": "^2.1.5",
@@ -972,7 +975,7 @@ return EventEmitter;
 
 };
 
-},{"events":156}],8:[function(require,module,exports){
+},{"events":175}],8:[function(require,module,exports){
 "use strict";
 /**
  * @fileoverview Exceptions
@@ -11735,16 +11738,16 @@ function standardizeChromeActiveIceCandidatePairStats(stats) {
  * @returns {?StandardizedActiveIceCandidatePairStatsReport}
  */
 function standardizeFirefoxActiveIceCandidatePairStats(stats) {
-  var activeCandidatePairStats = Object.values(stats).find(function(stat) {
-    return stat.type === 'candidatepair' && stat.nominated;
+  var activeCandidatePairStats = Array.from(stats.values()).find(function(stat) {
+    return stat.type === 'candidate-pair' && stat.nominated;
   });
 
   if (!activeCandidatePairStats) {
     return null;
   }
 
-  var activeLocalCandidateStats = stats[activeCandidatePairStats.localCandidateId];
-  var activeRemoteCandidateStats = stats[activeCandidatePairStats.remoteCandidateId];
+  var activeLocalCandidateStats = stats.get(activeCandidatePairStats.localCandidateId);
+  var activeRemoteCandidateStats = stats.get(activeCandidatePairStats.remoteCandidateId);
 
   var standardizedCandidateStatsKeys = [
     { key: 'candidateType', type: 'string' },
@@ -11890,7 +11893,7 @@ function chromeGetTrackStats(peerConnection, track) {
  */
 function firefoxGetTrackStats(peerConnection, track) {
   return new Promise(function(resolve, reject) {
-    peerConnection.getStats(track, function(response) {
+    peerConnection.getStats(track).then(function(response) {
       resolve(standardizeFirefoxStats(response));
     }, reject);
   });
@@ -11982,15 +11985,15 @@ function standardizeFirefoxStats(response) {
   //
   //   https://bugzilla.mozilla.org/show_bug.cgi?id=1377225
   //
-  response = response || {};
+  response = response || new Map();
 
-  var inbound = Object.keys(response).reduce(function(report, id) {
-    return response[id].type === 'inboundrtp' ? response[id] : report;
-  }, null);
+  var inbound = Array.from(response.values()).find(function(stat) {
+    return stat.type === 'inbound-rtp';
+  });
 
-  var outbound = Object.keys(response).reduce(function(report, id) {
-    return response[id].type === 'outboundrtp' ? response[id] : report;
-  }, null);
+  var outbound = Array.from(response.values()).find(function(stat) {
+    return stat.type === 'outbound-rtp';
+  });
 
   var standardizedStats = {};
 
@@ -12285,7 +12288,7 @@ var inherits = require('util').inherits;
 var Latch = require('../util/latch');
 var MediaStream = require('../mediastream');
 var RTCRtpSenderShim = require('../rtcrtpsender');
-var updateTracksToSSRCs = require('../util/sdp').updatePlanBTrackIdsToSSRCs;
+var sdpUtils = require('../util/sdp');
 var util = require('../util');
 
 var PeerConnection = typeof RTCPeerConnection !== 'undefined'
@@ -12303,14 +12306,17 @@ var PeerConnection = typeof RTCPeerConnection !== 'undefined'
 //
 //   3. Set iceTransportPolicy.
 //
-function ChromeRTCPeerConnection(configuration) {
+function ChromeRTCPeerConnection(configuration, constraints) {
   if (!(this instanceof ChromeRTCPeerConnection)) {
-    return new ChromeRTCPeerConnection(configuration);
+    return new ChromeRTCPeerConnection(configuration, constraints);
   }
 
   EventTarget.call(this);
 
-  var newConfiguration = Object.assign({}, configuration);
+  // NOTE(mhuynh): See
+  // https://webrtc.org/web-apis/chrome/unified-plan/
+  // for transition from 'plan-b' default to 'unified-plan' as default.
+  var newConfiguration = Object.assign({ sdpSemantics: 'plan-b' }, configuration);
   if (newConfiguration.iceTransportPolicy) {
     newConfiguration.iceTransports = newConfiguration.iceTransportPolicy;
   }
@@ -12326,7 +12332,8 @@ function ChromeRTCPeerConnection(configuration) {
   util.interceptEvent(this, 'track');
 
   /* eslint new-cap:0 */
-  var peerConnection = new PeerConnection(newConfiguration);
+  var peerConnection = new PeerConnection(newConfiguration, constraints);
+  var sdpSemantics = getSdpSemantics(newConfiguration.sdpSemantics);
 
   Object.defineProperties(this, {
     _localStream: {
@@ -12342,6 +12349,9 @@ function ChromeRTCPeerConnection(configuration) {
     _pendingRemoteOffer: {
       value: null,
       writable: true
+    },
+    _sdpSemantics: {
+      value: sdpSemantics
     },
     _senders: {
       value: new Map()
@@ -12436,12 +12446,21 @@ ChromeRTCPeerConnection.prototype.addTrack = function addTrack() {
 // keeping in mind that this is to be maintained only until "removeTrack" is
 // supported natively in Chrome.
 ChromeRTCPeerConnection.prototype.removeTrack = function removeTrack(sender) {
-  if (this._peerConnection.removeTrack) {
-    this._peerConnection.removeTrack(sender);
-    return;
-  }
   if (this._peerConnection.signalingState === 'closed') {
     throw new Error('Cannot remove MediaStreamTrack: RTCPeerConnection is closed');
+  }
+
+  if (this._peerConnection.removeTrack) {
+    try {
+      this._peerConnection.removeTrack(sender);
+    }
+    catch (error) {
+      // NOTE(mhuynh): Do nothing.
+      // In Chrome, will throw a 'sender was not created by this peer connection'
+      // This behavior does not seem to be spec compliant, so a temporary shim
+      // is introduced.
+    }
+    return;
   }
 
   var track = sender.track;
@@ -12521,20 +12540,26 @@ ChromeRTCPeerConnection.prototype.createAnswer = function createAnswer() {
       return self._peerConnection.createAnswer();
     }).then(function createAnswerSucceeded(answer) {
       self._pendingRemoteOffer = null;
-      return answer;
+      return new RTCSessionDescription({
+        type: 'answer',
+        sdp: updateTrackIdsToSSRCs(self._sdpSemantics, self._tracksToSSRCs, answer.sdp)
+      });
     }, function setRemoteDescriptionOrCreateAnswerFailed(error) {
       self._pendingRemoteOffer = null;
       throw error;
     });
+  } else {
+    promise = this._peerConnection.createAnswer().then(function(answer) {
+      return new RTCSessionDescription({
+        type: 'answer',
+        sdp: updateTrackIdsToSSRCs(self._sdpSemantics, self._tracksToSSRCs, answer.sdp)
+      });
+    });
   }
 
-  if (promise) {
-    return args.length > 1
-      ? util.legacyPromise(promise, args[0], args[1])
-      : promise;
-  }
-
-  return this._peerConnection.createAnswer.apply(this._peerConnection, args);
+  return args.length > 1
+    ? util.legacyPromise(promise, args[0], args[1])
+    : promise;
 };
 
 ChromeRTCPeerConnection.prototype.createOffer = function createOffer() {
@@ -12545,7 +12570,7 @@ ChromeRTCPeerConnection.prototype.createOffer = function createOffer() {
   var promise = this._peerConnection.createOffer(options).then(function(offer) {
     return new ChromeRTCSessionDescription({
       type: offer.type,
-      sdp: updateTracksToSSRCs(self._tracksToSSRCs, offer.sdp)
+      sdp: updateTrackIdsToSSRCs(self._sdpSemantics, self._tracksToSSRCs, offer.sdp)
     });
   });
 
@@ -12765,9 +12790,35 @@ function shimDataChannel(dataChannel) {
   return dataChannel;
 }
 
+/**
+ * Get the actual `sdpSemantics`.
+ * @param {SdpSemantics} sdpSemantics
+ * @returns {SdpSemantics}
+ */
+function getSdpSemantics(sdpSemantics) {
+  return sdpUtils.checkIfSdpSemanticsIsSupported()
+    ? sdpSemantics
+    : 'plan-b';
+}
+
+/**
+ * Update the mappings from MediaStreamTrack IDs to SSRCs as indicated by both
+ * the Map from MediaStreamTrack IDs to SSRCs and the SDP itself. This method
+ * ensures that SSRCs never change once announced.
+ * @param {SdpSemantics} sdpSemantics
+ * @param {Map<string, Set<string>>} trackIdsToSSRCs
+ * @param {string} sdp - an SDP whose format is determined by `sdpSemantics`
+ * @returns {string} updatedSdp - updated SDP
+ */
+function updateTrackIdsToSSRCs(sdpSemantics, tracksToSSRCs, sdp) {
+  return sdpSemantics === 'unified-plan'
+    ? sdpUtils.updateUnifiedPlanTrackIdsToSSRCs(tracksToSSRCs, sdp)
+    : sdpUtils.updatePlanBTrackIdsToSSRCs(tracksToSSRCs, sdp);
+}
+
 module.exports = ChromeRTCPeerConnection;
 
-},{"../mediastream":38,"../rtcrtpsender":45,"../rtcsessiondescription/chrome":46,"../util":50,"../util/eventtarget":49,"../util/latch":51,"../util/sdp":52,"util":155}],42:[function(require,module,exports){
+},{"../mediastream":38,"../rtcrtpsender":45,"../rtcsessiondescription/chrome":46,"../util":50,"../util/eventtarget":49,"../util/latch":51,"../util/sdp":52,"util":174}],42:[function(require,module,exports){
 /* globals mozRTCPeerConnection, RTCPeerConnection */
 'use strict';
 
@@ -12781,6 +12832,13 @@ var util = require('../util');
 var PeerConnection = typeof RTCPeerConnection !== 'undefined'
   ? RTCPeerConnection
   : mozRTCPeerConnection;
+
+// NOTE(mroberts): This is a short-lived workaround. Checking the user agent
+// string might not fix every affected Firefox instance, but it should be good
+// enough for this bug.
+var needsWorkaroundForBug1480277 = typeof navigator === 'object'
+  && navigator.userAgent
+  && (navigator.userAgent.match(/Firefox\/61/) || navigator.userAgent.match(/Firefox\/62/));
 
 // NOTE(mroberts): This class wraps Firefox's RTCPeerConnection implementation.
 // It provides some functionality not currently present in Firefox, namely the
@@ -12908,9 +12966,26 @@ FirefoxRTCPeerConnection.prototype.addTrack = function addTrack() {
   sender = getActiveSenders(this._peerConnection).get(track)
     || this._peerConnection.addTrack.apply(this._peerConnection, args);
 
+  if (needsWorkaroundForBug1480277) {
+    sender.replaceTrack(track);
+  }
+
   this._senders.set(track, sender);
   return sender;
 };
+
+if (PeerConnection.prototype.addTransceiver) {
+  FirefoxRTCPeerConnection.prototype.addTransceiver = function addTransceiver() {
+    var transceiver = this._peerConnection.addTransceiver.apply(this._peerConnection, arguments);
+    var sender = transceiver.sender;
+    var track = sender.track;
+    if (track && needsWorkaroundForBug1480277) {
+      sender.replaceTrack(track);
+    }
+    this._senders.set(track, sender);
+    return transceiver;
+  };
+}
 
 // NOTE(mmalavalli): RTCPeerConnection#removeTrack() has a bug in the
 // Firefox <--> Chrome interop case, which is mentioned below. So we disable
@@ -13152,7 +13227,7 @@ function getActiveSenders(peerConnection) {
 
 module.exports = FirefoxRTCPeerConnection;
 
-},{"../rtcrtpsender":45,"../rtcsessiondescription/firefox":47,"../util":50,"../util/eventtarget":49,"../util/sdp":52,"util":155}],43:[function(require,module,exports){
+},{"../rtcrtpsender":45,"../rtcsessiondescription/firefox":47,"../util":50,"../util/eventtarget":49,"../util/sdp":52,"util":174}],43:[function(require,module,exports){
 'use strict';
 
 var guessBrowser = require('../util').guessBrowser;
@@ -13195,6 +13270,7 @@ function SafariRTCPeerConnection(configuration) {
   util.interceptEvent(this, 'datachannel');
   util.interceptEvent(this, 'iceconnectionstatechange');
   util.interceptEvent(this, 'signalingstatechange');
+  util.interceptEvent(this, 'track');
 
   var peerConnection = new RTCPeerConnection(configuration);
 
@@ -13303,6 +13379,15 @@ function SafariRTCPeerConnection(configuration) {
     if (!self._pendingLocalOffer && !self._pendingRemoteOffer) {
       self.dispatchEvent.apply(self, arguments);
     }
+  });
+
+  // NOTE(syerrapragada): This ensures that SafariRTCPeerConnection's "remoteDescription", when accessed
+  // in an RTCTrackEvent listener, will point to the underlying RTCPeerConnection's
+  // "remoteDescription". Before this fix, this was still pointing to "_pendingRemoteOffer"
+  // even though a new remote RTCSessionDescription had already been applied.
+  peerConnection.addEventListener('track', function ontrack(event) {
+    self._pendingRemoteOffer = null;
+    self.dispatchEvent(event);
   });
 
   util.proxyProperties(RTCPeerConnection.prototype, this, peerConnection);
@@ -13551,7 +13636,7 @@ function getActiveSenders(peerConnection) {
 
 module.exports = SafariRTCPeerConnection;
 
-},{"../rtcrtpsender":45,"../util":50,"../util/eventtarget":49,"../util/latch":51,"../util/sdp":52,"util":155}],45:[function(require,module,exports){
+},{"../rtcrtpsender":45,"../util":50,"../util/eventtarget":49,"../util/latch":51,"../util/sdp":52,"util":174}],45:[function(require,module,exports){
 'use strict';
 
 /**
@@ -13701,7 +13786,7 @@ EventTarget.prototype.removeEventListener = function removeEventListener() {
 
 module.exports = EventTarget;
 
-},{"events":156}],50:[function(require,module,exports){
+},{"events":175}],50:[function(require,module,exports){
 'use strict';
 
 /**
@@ -14273,6 +14358,33 @@ function updateUnifiedPlanTrackIdsToSSRCs(trackIdsToSSRCs, sdp) {
   return updateTrackIdsToSSRCs(getUnifiedPlanTrackIdsToSSRCs, trackIdsToSSRCs, sdp);
 }
 
+// NOTE(mroberts): We need to cache this result so that we don't create too many
+// RTCPeerConnections.
+var sdpSemanticsIsSupported;
+
+/**
+ * Check whether or not `sdpSemantics` is supported.
+ * @returns {boolean}
+ */
+function checkIfSdpSemanticsIsSupported() {
+  if (typeof sdpSemanticsIsSupported === 'boolean') {
+    return sdpSemanticsIsSupported;
+  }
+  if (typeof RTCPeerConnection === 'undefined') {
+    sdpSemanticsIsSupported = false;
+    return sdpSemanticsIsSupported;
+  }
+  try {
+    new RTCPeerConnection({ sdpSemantics: 'bogus' });
+    sdpSemanticsIsSupported = false;
+    return sdpSemanticsIsSupported;
+  } catch (error) {
+    sdpSemanticsIsSupported = true;
+    return sdpSemanticsIsSupported;
+  }
+}
+
+exports.checkIfSdpSemanticsIsSupported = checkIfSdpSemanticsIsSupported;
 exports.getMediaSections = getMediaSections;
 exports.getPlanBTrackIds = getPlanBTrackIds;
 exports.getUnifiedPlanTrackIds = getUnifiedPlanTrackIds;
@@ -14283,29 +14395,35 @@ exports.updateUnifiedPlanTrackIdsToSSRCs = updateUnifiedPlanTrackIdsToSSRCs;
 
 },{"./":50}],53:[function(require,module,exports){
 module.exports={
-  "_from": "github:twilio/twilio-webrtc.js#2.0.1-rc1",
-  "_id": "@twilio/webrtc@2.0.1-rc1",
+  "_args": [
+    [
+      "@twilio/webrtc@2.1.4",
+      "/Users/michael/Projects/vetsdirect/resources/example/mediadevices-camera-selection"
+    ]
+  ],
+  "_from": "@twilio/webrtc@2.1.4",
+  "_id": "@twilio/webrtc@2.1.4",
   "_inBundle": false,
-  "_integrity": "",
+  "_integrity": "sha512-fQiN8EQ8TfGSVqgxIbCKoGg3EzNBO+QnZsgYM3rrKvAVcgVUlMzjZg86QVgAcrs36A5XBzikWC/KoU48SEJ5rw==",
   "_location": "/@twilio/webrtc",
   "_phantomChildren": {},
   "_requested": {
-    "type": "git",
-    "raw": "@twilio/webrtc@github:twilio/twilio-webrtc.js#2.0.1-rc1",
+    "type": "version",
+    "registry": true,
+    "raw": "@twilio/webrtc@2.1.4",
     "name": "@twilio/webrtc",
     "escapedName": "@twilio%2fwebrtc",
     "scope": "@twilio",
-    "rawSpec": "github:twilio/twilio-webrtc.js#2.0.1-rc1",
-    "saveSpec": "github:twilio/twilio-webrtc.js#2.0.1-rc1",
-    "fetchSpec": null,
-    "gitCommittish": "2.0.1-rc1"
+    "rawSpec": "2.1.4",
+    "saveSpec": null,
+    "fetchSpec": "2.1.4"
   },
   "_requiredBy": [
     "/twilio-video"
   ],
-  "_resolved": "github:twilio/twilio-webrtc.js#3532058a5083e69b6ce1ae2984dd59ad5c864f29",
-  "_spec": "@twilio/webrtc@github:twilio/twilio-webrtc.js#2.0.1-rc1",
-  "_where": "/Users/pnash/projects/mediadevices-camera-selection/node_modules/twilio-video",
+  "_resolved": "https://registry.npmjs.org/@twilio/webrtc/-/webrtc-2.1.4.tgz",
+  "_spec": "2.1.4",
+  "_where": "/Users/michael/Projects/vetsdirect/resources/example/mediadevices-camera-selection",
   "author": {
     "name": "Manjesh Malavalli",
     "email": "mmalavalli@twilio.com"
@@ -14313,7 +14431,6 @@ module.exports={
   "bugs": {
     "url": "https://github.com/twilio/twilio-webrtc.js/issues"
   },
-  "bundleDependencies": false,
   "contributors": [
     {
       "name": "Mark Roberts",
@@ -14324,7 +14441,6 @@ module.exports={
       "email": "rrowland@twilio.com"
     }
   ],
-  "deprecated": false,
   "description": "WebRTC-related APIs and shims used by twilio-video.js",
   "devDependencies": {
     "browserify": "^14.4.0",
@@ -14370,7 +14486,7 @@ module.exports={
     "test:integration:native": "karma start karma/integration.conf.js",
     "test:unit": "istanbul cover node_modules/mocha/bin/_mocha -- ./test/unit/index.js"
   },
-  "version": "2.0.1-rc1"
+  "version": "2.1.4"
 }
 
 },{}],54:[function(require,module,exports){
@@ -14633,7 +14749,7 @@ function createCancelableRoomPromise(getLocalTracks, createLocalParticipant, cre
 }
 
 module.exports = createCancelableRoomPromise;
-},{"./util/cancelablepromise":133}],57:[function(require,module,exports){
+},{"./util/cancelablepromise":150}],57:[function(require,module,exports){
 'use strict';
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -14887,6 +15003,8 @@ function connect(token, options) {
  * @property {boolean|CreateLocalTrackOptions} [audio=true] - Whether or not to
  *   get local audio with <code>getUserMedia</code> when <code>tracks</code>
  *   are not provided.
+ * @property {boolean} [dominantSpeaker=false] - Whether to enable the Dominant
+ *   Speaker API or not. This only takes effect in Group Rooms.
  * @property {Array<RTCIceServer>} iceServers - Override the STUN and TURN
  *   servers used when connecting to {@link Room}s
  * @property {number} [iceServersTimeout=3000] - Override the amount of time, in
@@ -14904,6 +15022,8 @@ function connect(token, options) {
  *   as a hint for variable bitrate codecs, but will not take effect for fixed
  *   bitrate codecs
  * @property {?string} [name=null] - Set to connect to a {@link Room} by name
+ * @property {boolean} [networkQuality=false] - Whether to enable the Network
+ *   Quality API or not. This only takes effect in Group Rooms.
  * @property {Array<AudioCodec>} [preferredAudioCodecs=[]] - Preferred audio codecs;
  *  An empty array preserves the current audio codec preference order.
  * @property {Array<VideoCodec|VideoCodecSettings>} [preferredVideoCodecs=[]] -
@@ -15070,7 +15190,7 @@ function normalizeVideoCodecSettings(nameOrSettings) {
 }
 
 module.exports = connect;
-},{"./cancelableroompromise":56,"./createlocaltracks":59,"./encodingparameters":64,"./iceserversource/constant":65,"./iceserversource/nts":66,"./localparticipant":68,"./media/track/es5/localaudiotrack":70,"./media/track/es5/localdatatrack":71,"./media/track/es5/localvideotrack":72,"./room":100,"./signaling/v2":111,"./util":136,"./util/cancelablepromise":133,"./util/constants":134,"./util/log":139,"@twilio/webrtc":37}],58:[function(require,module,exports){
+},{"./cancelableroompromise":56,"./createlocaltracks":59,"./encodingparameters":65,"./iceserversource/constant":66,"./iceserversource/nts":67,"./localparticipant":69,"./media/track/es5/localaudiotrack":71,"./media/track/es5/localdatatrack":72,"./media/track/es5/localvideotrack":73,"./room":101,"./signaling/v2":113,"./util":153,"./util/cancelablepromise":150,"./util/constants":151,"./util/log":156,"@twilio/webrtc":37}],58:[function(require,module,exports){
 'use strict';
 
 var defaultCreateLocalTracks = require('./createlocaltracks');
@@ -15116,7 +15236,7 @@ function createLocalTrack(kind, options) {
  * }).then(function(room) {
  *   // Add audio after connecting to the Room
  *   Video.createLocalAudioTrack().then(function(localTrack) {
- *     room.localParticipant.addTrack(localTrack);
+ *     room.localParticipant.publishTrack(localTrack);
  *   });
  * });
  * @example
@@ -15145,7 +15265,7 @@ function createLocalAudioTrack(options) {
  * }).then(function(room) {
  *   // Add video after connecting to the Room
  *   Video.createLocalVideoTrack().then(function(localTrack) {
- *     room.localParticipant.addTrack(localTrack);
+ *     room.localParticipant.publishTrack(localTrack);
  *   });
  * });
  * @example
@@ -15166,13 +15286,17 @@ function createLocalVideoTrack(options) {
  * @property {LogLevel|LogLevels} logLevel
  * @property {string} [name] - The {@link LocalTrack}'s name; by default,
  *   it is set to the {@link LocalTrack}'s ID.
+ * @property {boolean} [workaroundWebKitBug180748=false] - Only valid for
+ *   {@link LocalAudioTrack}s; setting this attempts to workaround WebKit Bug
+ *   180748, where, in Safari, getUserMedia may return a silent audio
+ *   MediaStreamTrack.
  */
 
 module.exports = {
   audio: createLocalAudioTrack,
   video: createLocalVideoTrack
 };
-},{"./createlocaltracks":59,"./util/constants":134}],59:[function(require,module,exports){
+},{"./createlocaltracks":59,"./util/constants":151}],59:[function(require,module,exports){
 'use strict';
 
 var asLocalTrack = require('./util').asLocalTrack;
@@ -15184,6 +15308,7 @@ var LocalVideoTrack = require('./media/track/es5/localvideotrack');
 var MediaStreamTrack = require('@twilio/webrtc').MediaStreamTrack;
 var Log = require('./util/log');
 var DEFAULT_LOG_LEVEL = require('./util/constants').DEFAULT_LOG_LEVEL;
+var workaround180748 = require('./webaudio/workaround180748');
 
 // This is used to make out which createLocalTracks() call a particular Log
 // statement belongs to. Each call to createLocalTracks() increments this
@@ -15273,10 +15398,16 @@ function createLocalTracks(options) {
     delete options.video.name;
   }
 
-  return options.getUserMedia({
+  var mediaStreamConstraints = {
     audio: options.audio,
     video: options.video
-  }).then(function (mediaStream) {
+  };
+
+  var workaroundWebKitBug180748 = options.audio && options.audio.workaroundWebKitBug180748;
+
+  var mediaStreamPromise = workaroundWebKitBug180748 ? workaround180748(log, options.getUserMedia, mediaStreamConstraints) : options.getUserMedia(mediaStreamConstraints);
+
+  return mediaStreamPromise.then(function (mediaStream) {
     var mediaStreamTracks = mediaStream.getAudioTracks().concat(mediaStream.getVideoTracks());
 
     log.info('Call to getUserMedia successful; got MediaStreamTracks:', mediaStreamTracks);
@@ -15306,8 +15437,10 @@ function createLocalTracks(options) {
  */
 
 module.exports = createLocalTracks;
-},{"./media/track/es5/localaudiotrack":70,"./media/track/es5/localdatatrack":71,"./media/track/es5/localvideotrack":72,"./util":136,"./util/constants":134,"./util/log":139,"@twilio/webrtc":37}],60:[function(require,module,exports){
+},{"./media/track/es5/localaudiotrack":71,"./media/track/es5/localdatatrack":72,"./media/track/es5/localvideotrack":73,"./util":153,"./util/constants":151,"./util/log":156,"./webaudio/workaround180748":169,"@twilio/webrtc":37}],60:[function(require,module,exports){
 'use strict';
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -15316,6 +15449,7 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
 var DataTrackTransceiver = require('./transceiver');
+var DataTransport = require('./transport');
 
 /**
  * A {@link DataTrackReceiver} represents a {@link DataTrackTransceiver} over
@@ -15335,11 +15469,17 @@ var DataTrackReceiver = function (_DataTrackTransceiver) {
   function DataTrackReceiver(dataChannel) {
     _classCallCheck(this, DataTrackReceiver);
 
+    var _this = _possibleConstructorReturn(this, (DataTrackReceiver.__proto__ || Object.getPrototypeOf(DataTrackReceiver)).call(this, dataChannel.label, dataChannel.maxPacketLifeTime, dataChannel.maxRetransmits, dataChannel.ordered));
+
+    Object.defineProperties(_this, {
+      _dataChannel: {
+        value: dataChannel
+      }
+    });
+
     // NOTE(mmalavalli): In Firefox, the default value for "binaryType" is "blob".
     // So, we set it to "arraybuffer" to ensure that it is consistent with Chrome
     // and Safari.
-    var _this = _possibleConstructorReturn(this, (DataTrackReceiver.__proto__ || Object.getPrototypeOf(DataTrackReceiver)).call(this, dataChannel.label, dataChannel.maxPacketLifeTime, dataChannel.maxRetransmits, dataChannel.ordered));
-
     dataChannel.binaryType = 'arraybuffer';
 
     dataChannel.addEventListener('message', function (event) {
@@ -15347,6 +15487,19 @@ var DataTrackReceiver = function (_DataTrackTransceiver) {
     });
     return _this;
   }
+
+  /**
+   * Create a {@link DataTransport} from the {@link DataTrackReceiver}.
+   * @returns {DataTransport}
+   */
+
+
+  _createClass(DataTrackReceiver, [{
+    key: 'toDataTransport',
+    value: function toDataTransport() {
+      return new DataTransport(this._dataChannel);
+    }
+  }]);
 
   return DataTrackReceiver;
 }(DataTrackTransceiver);
@@ -15357,7 +15510,7 @@ var DataTrackReceiver = function (_DataTrackTransceiver) {
  */
 
 module.exports = DataTrackReceiver;
-},{"./transceiver":62}],61:[function(require,module,exports){
+},{"./transceiver":62,"./transport":63}],61:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -15452,7 +15605,7 @@ var DataTrackSender = function (_DataTrackTransceiver) {
 }(DataTrackTransceiver);
 
 module.exports = DataTrackSender;
-},{"../util":136,"./transceiver":62}],62:[function(require,module,exports){
+},{"../util":153,"./transceiver":62}],62:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -15511,7 +15664,118 @@ var DataTrackTransceiver = function (_TrackTransceiver) {
 }(TrackTransceiver);
 
 module.exports = DataTrackTransceiver;
-},{"../transceiver":132}],63:[function(require,module,exports){
+},{"../transceiver":148}],63:[function(require,module,exports){
+'use strict';
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var _require = require('events'),
+    EventEmitter = _require.EventEmitter;
+
+/**
+ * @classdesc A {@link DataTransport} implements {@link MediaSignalingTransport}
+ *   in terms of an RTCDataChannel.
+ * @extends EventEmitter
+ * @implements MediaSignalingTransport
+ * @emits DataTransport#message
+ */
+
+
+var DataTransport = function (_EventEmitter) {
+  _inherits(DataTransport, _EventEmitter);
+
+  /**
+   * Construct a {@link DataTransport}.
+   * @param {RTCDataChannel} dataChannel
+   */
+  function DataTransport(dataChannel) {
+    _classCallCheck(this, DataTransport);
+
+    var _this = _possibleConstructorReturn(this, (DataTransport.__proto__ || Object.getPrototypeOf(DataTransport)).call(this));
+
+    Object.defineProperties(_this, {
+      _dataChannel: {
+        value: dataChannel
+      },
+      _messageQueue: {
+        value: []
+      }
+    });
+
+    dataChannel.addEventListener('open', function () {
+      _this._messageQueue.splice(0).forEach(function (message) {
+        return _this._publish(message);
+      });
+    });
+
+    dataChannel.addEventListener('message', function (_ref) {
+      var data = _ref.data;
+
+      try {
+        var message = JSON.parse(data);
+        _this.emit('message', message);
+      } catch (error) {
+        // Do nothing.
+      }
+    });
+
+    _this.publish({ type: 'ready' });
+    return _this;
+  }
+
+  /**
+   * @param message
+   * @private
+   */
+
+
+  _createClass(DataTransport, [{
+    key: '_publish',
+    value: function _publish(message) {
+      var data = JSON.stringify(message);
+      this._dataChannel.send(data);
+    }
+
+    /**
+     * Publish a message. Returns true if calling the method resulted in
+     * publishing (or eventually publishing) the update.
+     * @param {object} message
+     * @returns {boolean}
+     */
+
+  }, {
+    key: 'publish',
+    value: function publish(message) {
+      var dataChannel = this._dataChannel;
+      if (dataChannel.readyState === 'closing' || dataChannel.readyState === 'closed') {
+        return false;
+      }
+      if (dataChannel.readyState === 'connecting') {
+        this._messageQueue.push(message);
+        return true;
+      }
+      this._publish(message);
+      return true;
+    }
+  }]);
+
+  return DataTransport;
+}(EventEmitter);
+
+/**
+ * The {@link DataTransport} received a message.
+ * @event DataTransport#message
+ * @param {object} message
+ */
+
+module.exports = DataTransport;
+},{"events":175}],64:[function(require,module,exports){
 'use strict';
 
 var request = require('./request');
@@ -15580,7 +15844,7 @@ function toQueryString(params) {
 }
 
 module.exports.getConfiguration = getConfiguration;
-},{"./request":99,"./util/twilio-video-errors":148}],64:[function(require,module,exports){
+},{"./request":100,"./util/twilio-video-errors":165}],65:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -15687,7 +15951,7 @@ var EncodingParametersImpl = function (_EventEmitter) {
  */
 
 module.exports = EncodingParametersImpl;
-},{"events":156}],65:[function(require,module,exports){
+},{"events":175}],66:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -15739,6 +16003,10 @@ var ConstantIceServerSource = function (_EventEmitter) {
         get: function get() {
           return this._isStarted;
         }
+      },
+      status: {
+        enumerable: true,
+        value: 'overrode'
       }
     });
     return _this;
@@ -15766,7 +16034,7 @@ var ConstantIceServerSource = function (_EventEmitter) {
 }(EventEmitter);
 
 module.exports = ConstantIceServerSource;
-},{"events":156}],66:[function(require,module,exports){
+},{"events":175}],67:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -15875,6 +16143,10 @@ var NTSIceServerSource = function (_EventEmitter) {
       _log: {
         value: log
       },
+      _status: {
+        value: null,
+        writable: true
+      },
       // This Deferred remains unresolved until `stop` is called. We use it to
       // short-circuit in `poll`.
       _stopped: {
@@ -15889,12 +16161,6 @@ var NTSIceServerSource = function (_EventEmitter) {
       // This is the Access Token NTSIceServerSource makes requests to ECS with.
       _token: {
         value: token
-      },
-      isStarted: {
-        enumerable: true,
-        get: function get() {
-          return !!this._currentPoll;
-        }
       }
     });
 
@@ -15932,6 +16198,16 @@ var NTSIceServerSource = function (_EventEmitter) {
     key: 'toString',
     value: function toString() {
       return '[NTSIceServerSource #' + this._instance + ']';
+    }
+  }, {
+    key: 'isStarted',
+    get: function get() {
+      return !!this._currentPoll;
+    }
+  }, {
+    key: 'status',
+    get: function get() {
+      return this._status;
     }
   }]);
 
@@ -15996,8 +16272,11 @@ function poll(client) {
     if (!config) {
       throw alreadyStopped;
     }
-    return parseECSConfig(client, config);
+    var iceServersAndTTL = parseECSConfig(client, config);
+    client._status = 'success';
+    return iceServersAndTTL;
   }).catch(function (error) {
+    client._status = 'failure';
     if (!client.isStarted) {
       throw alreadyStopped;
     } else if (configWithTimeout.isTimedOut) {
@@ -16038,7 +16317,7 @@ function poll(client) {
 }
 
 module.exports = NTSIceServerSource;
-},{"../../package.json":151,"../ecs":63,"../util":136,"../util/constants":134,"../util/log":139,"../util/timeoutpromise":147,"../util/twilio-video-errors":148,"events":156}],67:[function(require,module,exports){
+},{"../../package.json":170,"../ecs":64,"../util":153,"../util/constants":151,"../util/log":156,"../util/timeoutpromise":164,"../util/twilio-video-errors":165,"events":175}],68:[function(require,module,exports){
 'use strict';
 
 var version = require('../package.json').version;
@@ -16084,7 +16363,7 @@ Object.defineProperties(Video, {
 });
 
 module.exports = Video;
-},{"../package.json":151,"./connect":57,"./createlocaltrack":58,"./createlocaltracks":59,"./media/track/es5/localaudiotrack":70,"./media/track/es5/localdatatrack":71,"./media/track/es5/localvideotrack":72,"./util/support":146}],68:[function(require,module,exports){
+},{"../package.json":170,"./connect":57,"./createlocaltrack":58,"./createlocaltracks":59,"./media/track/es5/localaudiotrack":71,"./media/track/es5/localdatatrack":72,"./media/track/es5/localvideotrack":73,"./util/support":163}],69:[function(require,module,exports){
 'use strict';
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -16199,17 +16478,67 @@ var LocalParticipant = function (_Participant) {
     });
 
     _this._handleTrackSignalingEvents();
+
+    util.deprecateEvents('LocalParticipant', _this, new Map([['trackAdded', null], ['trackRemoved', null]]), _this._log);
     return _this;
   }
 
   /**
-   * Get the {@link LocalTrack} events to re-emit.
    * @private
-   * @returns {Array<Array<string>>} events
+   * @param {LocalTrack} track
+   * @returns {?LocalTrack}
    */
 
 
   _createClass(LocalParticipant, [{
+    key: '_addTrack',
+    value: function _addTrack(track) {
+      var addedTrack = _get(LocalParticipant.prototype.__proto__ || Object.getPrototypeOf(LocalParticipant.prototype), '_addTrack', this).call(this, track);
+      if (addedTrack && this.state !== 'disconnected') {
+        this._addLocalTrack(track);
+      }
+      return addedTrack;
+    }
+
+    /**
+     * @private
+     * @param {LocalTrack} track
+     * @returns {void}
+     */
+
+  }, {
+    key: '_addLocalTrack',
+    value: function _addLocalTrack(track) {
+      this._signaling.addTrack(track._trackSender, track.name);
+      this._log.info('Added a new ' + util.trackClass(track, true) + ':', track.id);
+      this._log.debug(util.trackClass(track, true) + ':', track);
+    }
+
+    /**
+     * @private
+     * @param {LocalTrack} track
+     * @returns {?LocalTrack}
+     */
+
+  }, {
+    key: '_removeTrack',
+    value: function _removeTrack(track) {
+      var removedTrack = _get(LocalParticipant.prototype.__proto__ || Object.getPrototypeOf(LocalParticipant.prototype), '_removeTrack', this).call(this, track);
+      if (removedTrack && this.state !== 'disconnected') {
+        this._signaling.removeTrack(track._trackSender);
+        this._log.info('Removed a ' + util.trackClass(track, true) + ':', track.id);
+        this._log.debug(util.trackClass(track, true) + ':', track);
+      }
+      return removedTrack;
+    }
+
+    /**
+     * Get the {@link LocalTrack} events to re-emit.
+     * @private
+     * @returns {Array<Array<string>>} events
+     */
+
+  }, {
     key: '_getTrackEvents',
     value: function _getTrackEvents() {
       return _get(LocalParticipant.prototype.__proto__ || Object.getPrototypeOf(LocalParticipant.prototype), '_getTrackEvents', this).call(this).concat([['stopped', 'trackStopped']]);
@@ -16227,6 +16556,8 @@ var LocalParticipant = function (_Participant) {
   }, {
     key: '_handleTrackSignalingEvents',
     value: function _handleTrackSignalingEvents() {
+      var _this2 = this;
+
       var log = this._log;
 
       if (this.state === 'disconnected') {
@@ -16235,41 +16566,31 @@ var LocalParticipant = function (_Participant) {
 
       var signaling = this._signaling;
 
-      function localTrackAdded(localTrack) {
-        signaling.addTrack(localTrack._trackSender, localTrack.name);
-        log.info('Added a new ' + util.trackClass(localTrack, true) + ':', localTrack.id);
-        log.debug(util.trackClass(localTrack, true) + ':', localTrack);
-      }
-
       function localTrackDisabled(localTrack) {
         var trackSignaling = signaling.tracks.get(localTrack.id);
-        trackSignaling.disable();
-        log.debug('Disabled the ' + util.trackClass(localTrack, true) + ':', localTrack.id);
+        if (trackSignaling) {
+          trackSignaling.disable();
+          log.debug('Disabled the ' + util.trackClass(localTrack, true) + ':', localTrack.id);
+        }
       }
 
       function localTrackEnabled(localTrack) {
         var trackSignaling = signaling.tracks.get(localTrack.id);
-        trackSignaling.enable();
-        log.debug('Enabled the ' + util.trackClass(localTrack, true) + ':', localTrack.id);
+        if (trackSignaling) {
+          trackSignaling.enable();
+          log.debug('Enabled the ' + util.trackClass(localTrack, true) + ':', localTrack.id);
+        }
       }
 
-      function localTrackRemoved(localTrack) {
-        signaling.removeTrack(localTrack._trackSender);
-        log.info('Removed a ' + util.trackClass(localTrack, true) + ':', localTrack.id);
-        log.debug(util.trackClass(localTrack, true) + ':', localTrack);
-      }
-
-      this.on('trackAdded', localTrackAdded);
       this.on('trackDisabled', localTrackDisabled);
       this.on('trackEnabled', localTrackEnabled);
-      this.on('trackRemoved', localTrackRemoved);
 
       this.tracks.forEach(function (track) {
-        localTrackAdded(track);
-        this._getOrCreateLocalTrackPublication(track).catch(function () {
+        _this2._addLocalTrack(track);
+        _this2._getOrCreateLocalTrackPublication(track).catch(function () {
           // Do nothing for now.
         });
-      }, this);
+      });
 
       var self = this;
       signaling.on('stateChanged', function stateChanged(state) {
@@ -16277,10 +16598,8 @@ var LocalParticipant = function (_Participant) {
         if (state === 'disconnected') {
           log.debug('Removing LocalTrack event listeners');
           signaling.removeListener('stateChanged', stateChanged);
-          self.removeListener('trackAdded', localTrackAdded);
           self.removeListener('trackDisabled', localTrackDisabled);
           self.removeListener('trackEnabled', localTrackEnabled);
-          self.removeListener('trackRemoved', localTrackRemoved);
 
           log.info('LocalParticipant disconnected. Stopping ' + self._tracksToStop.size + ' automatically-acquired LocalTracks');
           self._tracksToStop.forEach(function (track) {
@@ -16534,7 +16853,7 @@ var LocalParticipant = function (_Participant) {
       var publication = this.unpublishTrack(track);
       track = publication && publication.track;
       stop = typeof stop === 'boolean' ? stop : true;
-      if (track && stop) {
+      if (track && stop && track.kind !== 'data') {
         track.stop();
         this._log.info('Stopped LocalTrack:', track);
       }
@@ -16564,7 +16883,7 @@ var LocalParticipant = function (_Participant) {
       stop = typeof stop === 'boolean' ? stop : true;
       return this.unpublishTracks(tracks).map(function (publication) {
         var track = publication.track;
-        if (stop) {
+        if (stop && track.kind !== 'data') {
           track.stop();
         }
         return track;
@@ -16658,7 +16977,7 @@ var LocalParticipant = function (_Participant) {
   }, {
     key: 'unpublishTracks',
     value: function unpublishTracks(tracks) {
-      var _this2 = this;
+      var _this3 = this;
 
       if (!Array.isArray(tracks)) {
         // eslint-disable-next-line new-cap
@@ -16666,7 +16985,7 @@ var LocalParticipant = function (_Participant) {
       }
 
       return tracks.reduce(function (unpublishedTracks, track) {
-        var unpublishedTrack = _this2.unpublishTrack(track);
+        var unpublishedTrack = _this3.unpublishTrack(track);
         return unpublishedTrack ? unpublishedTracks.concat(unpublishedTrack) : unpublishedTracks;
       }, []);
     }
@@ -16679,6 +16998,10 @@ var LocalParticipant = function (_Participant) {
  * A {@link LocalTrack} was added by the {@link LocalParticipant}.
  * @param {LocalTrack} track - The {@link LocalTrack} that was added
  * @event LocalParticipant#trackAdded
+ * @deprecated If you are using this event to monitor {@link LocalTrack}s that
+ *   are published to the {@link Room}, alternatively you can access the .tracks
+ *   collection which contains the newly added {@link LocalTrack}s right after
+ *   {@link LocalParticipant#publishTrack}(s) is called
  */
 
 /**
@@ -16720,6 +17043,10 @@ var LocalParticipant = function (_Participant) {
  * A {@link LocalTrack} was removed by the {@link LocalParticipant}.
  * @param {LocalTrack} track - The {@link LocalTrack} that was removed
  * @event LocalParticipant#trackRemoved
+ * @deprecated If you are using this event to monitor {@link LocalTrack}s that
+ *   are unpublished from the {@link Room}, alternatively you can monitor the
+ *   return value of {@link LocalParticipant#unpublishTrack}(s), which is the
+ *   removed {@link LocalTrack}(s)
  */
 
 /**
@@ -16762,7 +17089,7 @@ function getTrackPublication(trackPublications, track) {
 }
 
 module.exports = LocalParticipant;
-},{"./media/track/es5/localaudiotrack":70,"./media/track/es5/localdatatrack":71,"./media/track/es5/localvideotrack":72,"./media/track/localaudiotrackpublication":75,"./media/track/localdatatrackpublication":77,"./media/track/localvideotrackpublication":81,"./participant":96,"./util":136,"./util/constants":134,"@twilio/webrtc":37}],69:[function(require,module,exports){
+},{"./media/track/es5/localaudiotrack":71,"./media/track/es5/localdatatrack":72,"./media/track/es5/localvideotrack":73,"./media/track/localaudiotrackpublication":76,"./media/track/localdatatrackpublication":78,"./media/track/localvideotrackpublication":82,"./participant":97,"./util":153,"./util/constants":151,"@twilio/webrtc":37}],70:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -16807,70 +17134,83 @@ var AudioTrack = function (_MediaTrack) {
   }
 
   /**
-   * Create an HTMLAudioElement and attach the {@link AudioTrack} to it.
-   *
-   * The HTMLAudioElement's <code>srcObject</code> will be set to a new
-   * MediaStream containing the {@link AudioTrack}'s MediaStreamTrack.
-   *
-   * @returns {HTMLAudioElement} audioElement
-   * @example
-   * const Video = require('twilio-video');
-   *
-   * Video.createLocalAudioTrack().then(function(audioTrack) {
-   *   const audioElement = audioTrack.attach();
-   *   document.body.appendChild(audioElement);
-   * });
-  */ /**
-     * Attach the {@link AudioTrack} to an existing HTMLMediaElement. The
-     * HTMLMediaElement could be an HTMLAudioElement or an HTMLVideoElement.
-     *
-     * If the HTMLMediaElement's <code>srcObject</code> is not set to a MediaStream,
-     * this method sets it to a new MediaStream containing the {@link AudioTrack}'s
-     * MediaStreamTrack; otherwise, it adds the {@link MediaTrack}'s
-     * MediaStreamTrack to the existing MediaStream. Finally, if there are any other
-     * MediaStreamTracks of the same kind on the MediaStream, this method removes
-     * them.
-     *
-     * @param {HTMLMediaElement} mediaElement - The HTMLMediaElement to attach to
-     * @returns {HTMLMediaElement} mediaElement
-     * @example
-     * const Video = require('twilio-video');
-     *
-     * const videoElement = document.createElement('video');
-     * document.body.appendChild(videoElement);
-     *
-     * Video.createLocalAudioTrack().then(function(audioTrack) {
-     *   audioTrack.attach(videoElement);
-     * });
-     */ /**
-        * Attach the {@link AudioTrack} to an HTMLMediaElement selected by
-        * <code>document.querySelector</code>. The HTMLMediaElement could be an
-        * HTMLAudioElement or an HTMLVideoElement.
-        *
-        * If the HTMLMediaElement's <code>srcObject</code> is not set to a MediaStream,
-        * this method sets it to a new MediaStream containing the {@link AudioTrack}'s
-        * MediaStreamTrack; otherwise, it adds the {@link AudioTrack}'s
-        * MediaStreamTrack to the existing MediaStream. Finally, if there are any other
-        * MediaStreamTracks of the same kind on the MediaStream, this method removes
-        * them.
-        *
-        * @param {string} selector - A query selector for the HTMLMediaElement to
-        *   attach to
-        * @returns {HTMLMediaElement} mediaElement
-        * @example
-        * const Video = require('twilio-video');
-        *
-        * const videoElement = document.createElement('video');
-        * videoElement.id = 'my-video-element';
-        * document.body.appendChild(videoElement);
-        *
-        * Video.createLocalAudioTrack().then(function(track) {
-        *   track.attach('#my-video-element');
-        * });
-        */
+   * @private
+   */
 
 
   _createClass(AudioTrack, [{
+    key: '_start',
+    value: function _start() {
+      _get(AudioTrack.prototype.__proto__ || Object.getPrototypeOf(AudioTrack.prototype), '_start', this).call(this);
+      if (this._dummyEl) {
+        this._detachElement(this._dummyEl);
+      }
+    }
+
+    /**
+     * Create an HTMLAudioElement and attach the {@link AudioTrack} to it.
+     *
+     * The HTMLAudioElement's <code>srcObject</code> will be set to a new
+     * MediaStream containing the {@link AudioTrack}'s MediaStreamTrack.
+     *
+     * @returns {HTMLAudioElement} audioElement
+     * @example
+     * const Video = require('twilio-video');
+     *
+     * Video.createLocalAudioTrack().then(function(audioTrack) {
+     *   const audioElement = audioTrack.attach();
+     *   document.body.appendChild(audioElement);
+     * });
+    */ /**
+       * Attach the {@link AudioTrack} to an existing HTMLMediaElement. The
+       * HTMLMediaElement could be an HTMLAudioElement or an HTMLVideoElement.
+       *
+       * If the HTMLMediaElement's <code>srcObject</code> is not set to a MediaStream,
+       * this method sets it to a new MediaStream containing the {@link AudioTrack}'s
+       * MediaStreamTrack; otherwise, it adds the {@link MediaTrack}'s
+       * MediaStreamTrack to the existing MediaStream. Finally, if there are any other
+       * MediaStreamTracks of the same kind on the MediaStream, this method removes
+       * them.
+       *
+       * @param {HTMLMediaElement} mediaElement - The HTMLMediaElement to attach to
+       * @returns {HTMLMediaElement} mediaElement
+       * @example
+       * const Video = require('twilio-video');
+       *
+       * const videoElement = document.createElement('video');
+       * document.body.appendChild(videoElement);
+       *
+       * Video.createLocalAudioTrack().then(function(audioTrack) {
+       *   audioTrack.attach(videoElement);
+       * });
+       */ /**
+          * Attach the {@link AudioTrack} to an HTMLMediaElement selected by
+          * <code>document.querySelector</code>. The HTMLMediaElement could be an
+          * HTMLAudioElement or an HTMLVideoElement.
+          *
+          * If the HTMLMediaElement's <code>srcObject</code> is not set to a MediaStream,
+          * this method sets it to a new MediaStream containing the {@link AudioTrack}'s
+          * MediaStreamTrack; otherwise, it adds the {@link AudioTrack}'s
+          * MediaStreamTrack to the existing MediaStream. Finally, if there are any other
+          * MediaStreamTracks of the same kind on the MediaStream, this method removes
+          * them.
+          *
+          * @param {string} selector - A query selector for the HTMLMediaElement to
+          *   attach to
+          * @returns {HTMLMediaElement} mediaElement
+          * @example
+          * const Video = require('twilio-video');
+          *
+          * const videoElement = document.createElement('video');
+          * videoElement.id = 'my-video-element';
+          * document.body.appendChild(videoElement);
+          *
+          * Video.createLocalAudioTrack().then(function(track) {
+          *   track.attach('#my-video-element');
+          * });
+          */
+
+  }, {
     key: 'attach',
     value: function attach() {
       return _get(AudioTrack.prototype.__proto__ || Object.getPrototypeOf(AudioTrack.prototype), 'attach', this).apply(this, arguments);
@@ -16930,7 +17270,7 @@ var AudioTrack = function (_MediaTrack) {
  */
 
 module.exports = AudioTrack;
-},{"./mediatrack":82}],70:[function(require,module,exports){
+},{"./mediatrack":83}],71:[function(require,module,exports){
 // TODO(mroberts): Remove this when we go to the next major version. This is
 // only in place so that we can support ES6 classes without requiring `new`.
 'use strict';
@@ -16949,7 +17289,7 @@ function LocalAudioTrack(mediaStreamTrack, options) {
 inherits(LocalAudioTrack, LocalAudioTrackClass);
 
 module.exports = LocalAudioTrack;
-},{"../localaudiotrack":74,"util":155}],71:[function(require,module,exports){
+},{"../localaudiotrack":75,"util":174}],72:[function(require,module,exports){
 // TODO(mroberts): Remove this when we go to the next major version. This is
 // only in place so that we can support ES6 classes without requiring `new`.
 'use strict';
@@ -16968,7 +17308,7 @@ function LocalDataTrack(options) {
 inherits(LocalDataTrack, LocalDataTrackClass);
 
 module.exports = LocalDataTrack;
-},{"../localdatatrack":76,"util":155}],72:[function(require,module,exports){
+},{"../localdatatrack":77,"util":174}],73:[function(require,module,exports){
 // TODO(mroberts): Remove this when we go to the next major version. This is
 // only in place so that we can support ES6 classes without requiring `new`.
 'use strict';
@@ -16987,8 +17327,10 @@ function LocalVideoTrack(mediaStreamTrack, options) {
 inherits(LocalVideoTrack, LocalVideoTrackClass);
 
 module.exports = LocalVideoTrack;
-},{"../localvideotrack":80,"util":155}],73:[function(require,module,exports){
+},{"../localvideotrack":81,"util":174}],74:[function(require,module,exports){
 'use strict';
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -17006,7 +17348,6 @@ var nInstances = 0;
 /**
  * A {@link Track} represents a stream of audio, video, or data.
  * @extends EventEmitter
- * @property {Track.ID} id - The {@link Track}'s ID
  * @property {Track.Kind} kind - The {@link Track}'s kind
  * @property {string} name - The {@link Track}'s name
  */
@@ -17037,15 +17378,14 @@ var Track = function (_EventEmitter) {
     var log = options.log ? options.log.createLog('media', _this) : new Log('media', _this, logLevels);
 
     Object.defineProperties(_this, {
+      _id: {
+        value: id
+      },
       _instanceId: {
         value: ++nInstances
       },
       _log: {
         value: log
-      },
-      id: {
-        enumerable: true,
-        value: id
       },
       kind: {
         enumerable: true,
@@ -17058,6 +17398,19 @@ var Track = function (_EventEmitter) {
     });
     return _this;
   }
+
+  /**
+   * The {@link Track}'s ID.
+   * @property {Track.ID}
+   */
+
+
+  _createClass(Track, [{
+    key: 'id',
+    get: function get() {
+      return this._id;
+    }
+  }]);
 
   return Track;
 }(EventEmitter);
@@ -17104,7 +17457,7 @@ var Track = function (_EventEmitter) {
  */
 
 module.exports = Track;
-},{"../../util":136,"../../util/constants":134,"../../util/log":139,"events":156}],74:[function(require,module,exports){
+},{"../../util":153,"../../util/constants":151,"../../util/log":156,"events":175}],75:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -17252,7 +17605,7 @@ var LocalAudioTrack = function (_LocalMediaAudioTrack) {
  */
 
 module.exports = LocalAudioTrack;
-},{"./audiotrack":69,"./localmediatrack":78}],75:[function(require,module,exports){
+},{"./audiotrack":70,"./localmediatrack":79}],76:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -17301,7 +17654,7 @@ var LocalAudioTrackPublication = function (_LocalTrackPublicatio) {
 }(LocalTrackPublication);
 
 module.exports = LocalAudioTrackPublication;
-},{"./localtrackpublication":79}],76:[function(require,module,exports){
+},{"./localtrackpublication":80}],77:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -17442,7 +17795,7 @@ var LocalDataTrack = function (_Track) {
  */
 
 module.exports = LocalDataTrack;
-},{"../../data/sender":61,"./":73}],77:[function(require,module,exports){
+},{"../../data/sender":61,"./":74}],78:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -17491,7 +17844,7 @@ var LocalDataTrackPublication = function (_LocalTrackPublicatio) {
 }(LocalTrackPublication);
 
 module.exports = LocalDataTrackPublication;
-},{"./localtrackpublication":79}],78:[function(require,module,exports){
+},{"./localtrackpublication":80}],79:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -17602,7 +17955,7 @@ function mixinLocalMediaTrack(AudioOrVideoTrack) {
 }
 
 module.exports = mixinLocalMediaTrack;
-},{"./sender":92}],79:[function(require,module,exports){
+},{"./sender":93}],80:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -17701,7 +18054,7 @@ var LocalTrackPublication = function (_TrackPublication) {
 }(TrackPublication);
 
 module.exports = LocalTrackPublication;
-},{"./trackpublication":93}],80:[function(require,module,exports){
+},{"./trackpublication":94}],81:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -17839,7 +18192,7 @@ var LocalVideoTrack = function (_LocalMediaVideoTrack) {
  */
 
 module.exports = LocalVideoTrack;
-},{"./localmediatrack":78,"./videotrack":95}],81:[function(require,module,exports){
+},{"./localmediatrack":79,"./videotrack":96}],82:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -17888,7 +18241,7 @@ var LocalVideoTrackPublication = function (_LocalTrackPublicatio) {
 }(LocalTrackPublication);
 
 module.exports = LocalVideoTrackPublication;
-},{"./localtrackpublication":79}],82:[function(require,module,exports){
+},{"./localtrackpublication":80}],83:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -17981,7 +18334,6 @@ var MediaTrack = function (_Track) {
       this._log.debug('Started');
       this._isStarted = true;
       if (this._dummyEl) {
-        this._detachElement(this._dummyEl);
         this._dummyEl.oncanplay = null;
       }
       // eslint-disable-next-line no-use-before-define
@@ -18178,7 +18530,7 @@ var MediaTrack = function (_Track) {
 }(Track);
 
 module.exports = MediaTrack;
-},{"./":73,"@twilio/webrtc":37}],83:[function(require,module,exports){
+},{"./":74,"@twilio/webrtc":37}],84:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -18212,7 +18564,7 @@ var MediaTrackReceiver = function (_MediaTrackTransceive) {
 }(MediaTrackTransceiver);
 
 module.exports = MediaTrackReceiver;
-},{"./transceiver":94}],84:[function(require,module,exports){
+},{"./transceiver":95}],85:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -18238,7 +18590,7 @@ var RemoteMediaAudioTrack = mixinRemoteMediaTrack(AudioTrack);
  * @emits RemoteAudioTrack#disabled
  * @emits RemoteAudioTrack#enabled
  * @emits RemoteAudioTrack#started
- * @emits RemoteMediaTrack#unsubscribed
+ * @emits RemoteAudioTrack#unsubscribed
  */
 
 var RemoteAudioTrack = function (_RemoteMediaAudioTrac) {
@@ -18292,10 +18644,12 @@ var RemoteAudioTrack = function (_RemoteMediaAudioTrac) {
  * @param {RemoteAudioTrack} track - The {@link RemoteAudioTrack} that was
  *   unsubscribed from
  * @event RemoteAudioTrack#unsubscribed
+ * @deprecated Use the parent {@link RemoteAudioTrackPublication}'s
+ *   "unsubscribed" event instead
  */
 
 module.exports = RemoteAudioTrack;
-},{"./audiotrack":69,"./remotemediatrack":88}],85:[function(require,module,exports){
+},{"./audiotrack":70,"./remotemediatrack":89}],86:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -18368,7 +18722,7 @@ var RemoteAudioTrackPublication = function (_RemoteTrackPublicati) {
  */
 
 module.exports = RemoteAudioTrackPublication;
-},{"./remotetrackpublication":89}],86:[function(require,module,exports){
+},{"./remotetrackpublication":90}],87:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -18378,6 +18732,9 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var _require = require('../../util'),
+    deprecateEvents = _require.deprecateEvents;
 
 var Track = require('./');
 
@@ -18448,6 +18805,8 @@ var RemoteDataTrack = function (_Track) {
       }
     });
 
+    deprecateEvents('RemoteDataTrack', _this, new Map([['unsubscribed', null]]), _this._log);
+
     dataTrackReceiver.on('message', function (data) {
       _this.emit('message', data, _this);
     });
@@ -18455,8 +18814,10 @@ var RemoteDataTrack = function (_Track) {
   }
 
   /**
-   * Whether the {@link RemoteDataTrack} is subscribed to
-   * @property {boolean}
+   * The {@link RemoteDataTrack}'s ID.
+   * @property {Track.ID}
+   * @deprecated Use the parent {@link RemoteTrackPublication}'s .trackName
+   *   or .trackSid instead
    */
 
 
@@ -18497,13 +18858,28 @@ var RemoteDataTrack = function (_Track) {
       }
     }
   }, {
+    key: 'id',
+    get: function get() {
+      this._log.deprecated('RemoteDataTrack#id has been deprecated and is ' + 'scheduled for removal in twilio-video.js@2.0.0. Use the parent ' + 'RemoteTrackPublication\'s .trackName or .trackSid instead.');
+      return this._id;
+    }
+
+    /**
+     * Whether the {@link RemoteDataTrack} is subscribed to
+     * @property {boolean}
+     * @deprecated Use the parent {@link RemoteTrackPublication}'s .isSubscribed
+     *   instead
+     */
+
+  }, {
     key: 'isSubscribed',
     get: function get() {
+      this._log.deprecated('RemoteDataTrack#isSubscribed has been deprecated and is ' + 'scheduled for removal in twilio-video.js@2.0.0. Use the ' + 'parent RemoteTrackPublication\'s .isSubscribed instead.');
       return this._isSubscribed;
     }
 
     /**
-     * The SID assigned to the {@link RemoteMediaTrack}.
+     * The SID assigned to the {@link RemoteMediaTrack}
      * @property {Track.SID}
      */
 
@@ -18530,10 +18906,12 @@ var RemoteDataTrack = function (_Track) {
  * @event RemoteDataTrack#unsubscribed
  * @param {RemoteDataTrack} track - The {@link RemoteDataTrack} that was
  *   unsubscribed from
+ * @deprecated Use the parent {@link RemoteTrackPublication}'s "unsubscribed"
+ *   event instead
  */
 
 module.exports = RemoteDataTrack;
-},{"./":73}],87:[function(require,module,exports){
+},{"../../util":153,"./":74}],88:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -18594,7 +18972,7 @@ var RemoteDataTrackPublication = function (_RemoteTrackPublicati) {
  */
 
 module.exports = RemoteDataTrackPublication;
-},{"./remotetrackpublication":89}],88:[function(require,module,exports){
+},{"./remotetrackpublication":90}],89:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -18604,6 +18982,9 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var _require = require('../../util'),
+    deprecateEvents = _require.deprecateEvents;
 
 function mixinRemoteMediaTrack(AudioOrVideoTrack) {
   /**
@@ -18641,12 +19022,16 @@ function mixinRemoteMediaTrack(AudioOrVideoTrack) {
           writable: true
         }
       });
+
+      deprecateEvents('RemoteMediaTrack', _this, new Map([['unsubscribed', null]]), _this._log);
       return _this;
     }
 
     /**
-     * Whether the {@link RemoteMediaTrack} is enabled
-     * @property {boolean}
+     * The {@link RemoteMediaTrack}'s ID.
+     * @property {Track.ID}
+     * @deprecated Use the parent {@link RemoteTrackPublication}'s .trackName or
+     *   .trackSid instead
      */
 
 
@@ -18691,6 +19076,18 @@ function mixinRemoteMediaTrack(AudioOrVideoTrack) {
         }
       }
     }, {
+      key: 'id',
+      get: function get() {
+        this._log.deprecated('RemoteMediaTrack#id has been deprecated and is ' + 'scheduled for removal in twilio-video.js@2.0.0. Use the parent ' + 'RemoteTrackPublication\'s .trackName or .trackSid instead.');
+        return this._id;
+      }
+
+      /**
+       * Whether the {@link RemoteMediaTrack} is enabled
+       * @property {boolean}
+       */
+
+    }, {
       key: 'isEnabled',
       get: function get() {
         return this._isEnabled;
@@ -18699,16 +19096,19 @@ function mixinRemoteMediaTrack(AudioOrVideoTrack) {
       /**
        * Whether the {@link RemoteMediaTrack} is subscribed to
        * @property {boolean}
+       * @deprecated Use the parent {@link RemoteTrackPublication}'s .isSubscribed
+       *   instead
        */
 
     }, {
       key: 'isSubscribed',
       get: function get() {
+        this._log.deprecated('RemoteMediaTrack#isSubscribed has been deprecated and is ' + 'scheduled for removal in twilio-video.js@2.0.0. Use the ' + 'parent RemoteTrackPublication\'s .isSubscribed instead.');
         return this._isSubscribed;
       }
 
       /**
-       * The SID assigned to the {@link RemoteMediaTrack}.
+       * The SID assigned to the {@link RemoteMediaTrack}
        * @property {Track.SID}
        */
 
@@ -18742,10 +19142,12 @@ function mixinRemoteMediaTrack(AudioOrVideoTrack) {
  * @event RemoteMediaTrack#unsubscribed
  * @param {RemoteMediaTrack} track - The {@link RemoteMediaTrack} that was
  *   unsubscribed from
+ * @deprecated Use the parent {@link RemoteTrackPublication}'s "unsubscribed"
+ *   event instead
  */
 
 module.exports = mixinRemoteMediaTrack;
-},{}],89:[function(require,module,exports){
+},{"../../util":153}],90:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -18910,7 +19312,7 @@ var RemoteTrackPublication = function (_TrackPublication) {
  */
 
 module.exports = RemoteTrackPublication;
-},{"./trackpublication":93}],90:[function(require,module,exports){
+},{"./trackpublication":94}],91:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -18991,10 +19393,12 @@ var RemoteVideoTrack = function (_RemoteMediaVideoTrac) {
  * @param {RemoteVideoTrack} track - The {@link RemoteVideoTrack} that was
  *   unsubscribed from
  * @event RemoteVideoTrack#unsubscribed
+ * @deprecated Use the parent {@link RemoteVideoTrackPublication}'s
+ *   "unsubscribed" event instead
  */
 
 module.exports = RemoteVideoTrack;
-},{"./remotemediatrack":88,"./videotrack":95}],91:[function(require,module,exports){
+},{"./remotemediatrack":89,"./videotrack":96}],92:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -19067,7 +19471,7 @@ var RemoteVideoTrackPublication = function (_RemoteTrackPublicati) {
  */
 
 module.exports = RemoteVideoTrackPublication;
-},{"./remotetrackpublication":89}],92:[function(require,module,exports){
+},{"./remotetrackpublication":90}],93:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -19137,7 +19541,7 @@ var MediaTrackSender = function (_MediaTrackTransceive) {
 }(MediaTrackTransceiver);
 
 module.exports = MediaTrackSender;
-},{"./transceiver":94}],93:[function(require,module,exports){
+},{"./transceiver":95}],94:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -19248,7 +19652,7 @@ var TrackPublication = function (_EventEmitter) {
  */
 
 module.exports = TrackPublication;
-},{"../../util":136,"../../util/constants":134,"../../util/log":139,"events":156}],94:[function(require,module,exports){
+},{"../../util":153,"../../util/constants":151,"../../util/log":156,"events":175}],95:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -19298,7 +19702,7 @@ var MediaTrackTransceiver = function (_TrackTransceiver) {
 }(TrackTransceiver);
 
 module.exports = MediaTrackTransceiver;
-},{"../../transceiver":132}],95:[function(require,module,exports){
+},{"../../transceiver":148}],96:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -19355,9 +19759,6 @@ var VideoTrack = function (_MediaTrack) {
         }
       }
     });
-    Object.defineProperty(_this, '_dimensionsChangedElem', {
-      value: emitDimensionsChangedEvents(_this)
-    });
     return _ret = _this, _possibleConstructorReturn(_this, _ret);
   }
 
@@ -19367,6 +19768,36 @@ var VideoTrack = function (_MediaTrack) {
 
 
   _createClass(VideoTrack, [{
+    key: '_initialize',
+    value: function _initialize() {
+      var _this2 = this;
+
+      _get(VideoTrack.prototype.__proto__ || Object.getPrototypeOf(VideoTrack.prototype), '_initialize', this).call(this);
+      if (this._dummyEl) {
+        this._dummyEl.onloadedmetadata = function () {
+          if (dimensionsChanged(_this2, _this2._dummyEl)) {
+            _this2.dimensions.width = _this2._dummyEl.videoWidth;
+            _this2.dimensions.height = _this2._dummyEl.videoHeight;
+          }
+        };
+        this._dummyEl.onresize = function () {
+          if (dimensionsChanged(_this2, _this2._dummyEl)) {
+            _this2.dimensions.width = _this2._dummyEl.videoWidth;
+            _this2.dimensions.height = _this2._dummyEl.videoHeight;
+            if (_this2.isStarted) {
+              _this2._log.debug('Dimensions changed:', _this2.dimensions);
+              _this2.emit(VideoTrack.DIMENSIONS_CHANGED, _this2);
+            }
+          }
+        };
+      }
+    }
+
+    /**
+     * @private
+     */
+
+  }, {
     key: '_start',
     value: function _start(dummyEl) {
       this.dimensions.width = dummyEl.videoWidth;
@@ -19479,34 +19910,7 @@ var VideoTrack = function (_MediaTrack) {
   return VideoTrack;
 }(MediaTrack);
 
-var DIMENSIONS_CHANGED = VideoTrack.DIMENSIONS_CHANGED = 'dimensionsChanged';
-
-function emitDimensionsChangedEvents(track) {
-  if (typeof document === 'undefined') {
-    return null;
-  }
-  var elem = document.createElement(track.kind);
-  elem.muted = true;
-  elem.onloadedmetadata = function onloadedmetadata() {
-    if (dimensionsChanged(track, elem)) {
-      track.dimensions.width = elem.videoWidth;
-      track.dimensions.height = elem.videoHeight;
-    }
-  };
-  elem.onresize = function onresize() {
-    if (dimensionsChanged(track, elem)) {
-      track.dimensions.width = elem.videoWidth;
-      track.dimensions.height = elem.videoHeight;
-      if (track.isStarted) {
-        track._log.debug('Dimensions changed:', track.dimensions);
-        track.emit(DIMENSIONS_CHANGED, track);
-      }
-    }
-  };
-  elem = track.attach(elem);
-  track._attachments.delete(elem);
-  return elem;
-}
+VideoTrack.DIMENSIONS_CHANGED = 'dimensionsChanged';
 
 function dimensionsChanged(track, elem) {
   return track.dimensions.width !== elem.videoWidth || track.dimensions.height !== elem.videoHeight;
@@ -19547,7 +19951,7 @@ function dimensionsChanged(track, elem) {
  */
 
 module.exports = VideoTrack;
-},{"./mediatrack":82}],96:[function(require,module,exports){
+},{"./mediatrack":83}],97:[function(require,module,exports){
 'use strict';
 
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
@@ -19574,6 +19978,12 @@ var util = require('./util');
 var nInstances = 0;
 
 /**
+ * {@link NetworkQualityLevel} is a value from 0–5, inclusive, representing the
+ * quality of a network connection.
+ * @typedef {number} NetworkQualityLevel
+ */
+
+/**
  * @extends EventEmitter
  * @property {Map<Track.ID, AudioTrack>} audioTracks -
  *    The {@link Participant}'s {@link AudioTrack}s
@@ -19595,6 +20005,7 @@ var nInstances = 0;
  * @property {Map<Track.SID, VideoTrackPublication>} videoTrackPublications -
  *    The {@link Participant}'s {@link VideoTrackPublication}s
  * @emits Participant#disconnected
+ * @emits Particiapnt#networkQualityLevelChanged
  * @emits Participant#trackAdded
  * @emits Participant#trackDimensionsChanged
  * @emits Participant#trackDisabled
@@ -19667,6 +20078,9 @@ var Participant = function (_EventEmitter) {
       _trackPublicationEventReemitters: {
         value: new Map()
       },
+      _trackSignalingUpdatedEventCallbacks: {
+        value: new Map()
+      },
       audioTracks: {
         enumerable: true,
         value: audioTracks
@@ -19720,6 +20134,9 @@ var Participant = function (_EventEmitter) {
     });
 
     _this.tracks.forEach(reemitTrackEvents.bind(null, _this));
+    signaling.on('networkQualityLevelChanged', function () {
+      return _this.emit('networkQualityLevelChanged', _this.networkQualityLevel);
+    });
     reemitSignalingStateChangedEvents(_this, signaling);
     log.info('Created a new Participant' + (_this.identity ? ': ' + _this.identity : ''));
     return _this;
@@ -19750,6 +20167,12 @@ var Participant = function (_EventEmitter) {
       // in twilio-video.js@2.0.0 onwards.
       return [];
     }
+
+    /**
+     * Get the current {@link NetworkQualityLevel}, if any.
+     * @returns {?NetworkQualityLevel} networkQualityLevel - initially null
+     */
+
   }, {
     key: 'toString',
     value: function toString() {
@@ -19766,20 +20189,20 @@ var Participant = function (_EventEmitter) {
     key: '_addTrack',
     value: function _addTrack(track) {
       var log = this._log;
-      if (this.tracks.has(track.id)) {
+      if (this.tracks.has(track._id)) {
         return null;
       }
-      this.tracks.set(track.id, track);
+      this.tracks.set(track._id, track);
 
       var tracksByKind = {
         audio: this.audioTracks,
         video: this.videoTracks,
         data: this.dataTracks
       }[track.kind];
-      tracksByKind.set(track.id, track);
+      tracksByKind.set(track._id, track);
       reemitTrackEvents(this, track);
 
-      log.info('Added a new ' + util.trackClass(track) + ':', track.id);
+      log.info('Added a new ' + util.trackClass(track) + ':', track._id);
       log.debug(util.trackClass(track) + ':', track);
       this.emit('trackAdded', track);
 
@@ -19846,37 +20269,67 @@ var Participant = function (_EventEmitter) {
         var publication = new RemoteTrackPublication(signaling, { log: log });
         self._addTrackPublication(publication);
 
-        signaling.getTrackTransceiver().then(function (trackReceiver) {
-          var RemoteTrack = {
-            audio: RemoteAudioTrack,
-            video: RemoteVideoTrack,
-            data: RemoteDataTrack
-          }[signaling.kind];
+        var isSubscribed = signaling.isSubscribed;
+        if (isSubscribed) {
+          trackSignalingSubscribed(signaling);
+        }
 
-          // NOTE(mroberts): It should never be the case that the TrackSignaling and
-          // MediaStreamTrack or DataTrackReceiver kinds disagree; however, just in
-          // case, we handle it here.
-          if (!RemoteTrack || signaling.kind !== trackReceiver.kind) {
-            return;
+        self._trackSignalingUpdatedEventCallbacks.set(signaling.sid, function () {
+          if (isSubscribed !== signaling.isSubscribed) {
+            isSubscribed = signaling.isSubscribed;
+            if (isSubscribed) {
+              trackSignalingSubscribed(signaling);
+              return;
+            }
+            trackSignalingUnsubscribed(signaling);
           }
-
-          var track = signaling.kind === 'data' ? new RemoteTrack(trackReceiver, { log: log, name: signaling.name }) : new RemoteTrack(trackReceiver, signaling.isEnabled, { log: log, name: signaling.name });
-
-          self._addTrack(track, publication);
         });
+        signaling.on('updated', self._trackSignalingUpdatedEventCallbacks.get(signaling.sid));
       }
 
       function trackSignalingRemoved(signaling) {
-        signaling.getTrackTransceiver().then(function () {
-          var publication = self.trackPublications.get(signaling.sid);
-          var track = self.tracks.get(signaling.id);
-          if (track) {
-            self._removeTrack(track, publication);
-          }
-          if (publication) {
-            self._removeTrackPublication(publication);
-          }
-        });
+        if (signaling.isSubscribed) {
+          signaling.setTrackTransceiver(null);
+        }
+        var updated = self._trackSignalingUpdatedEventCallbacks.get(signaling.sid);
+        if (updated) {
+          signaling.removeListener('updated', updated);
+          self._trackSignalingUpdatedEventCallbacks.delete(signaling.id);
+        }
+        var publication = self.trackPublications.get(signaling.sid);
+        if (publication) {
+          self._removeTrackPublication(publication);
+        }
+      }
+
+      function trackSignalingSubscribed(signaling) {
+        var RemoteTrack = {
+          audio: RemoteAudioTrack,
+          video: RemoteVideoTrack,
+          data: RemoteDataTrack
+        }[signaling.kind];
+
+        var publication = self.trackPublications.get(signaling.sid);
+        var trackReceiver = signaling.trackTransceiver;
+
+        // NOTE(mroberts): It should never be the case that the TrackSignaling and
+        // MediaStreamTrack or DataTrackReceiver kinds disagree; however, just in
+        // case, we handle it here.
+        if (!RemoteTrack || signaling.kind !== trackReceiver.kind) {
+          return;
+        }
+
+        var track = signaling.kind === 'data' ? new RemoteTrack(trackReceiver, { log: log, name: signaling.name }) : new RemoteTrack(trackReceiver, signaling.isEnabled, { log: log, name: signaling.name });
+
+        self._addTrack(track, publication);
+      }
+
+      function trackSignalingUnsubscribed(signaling) {
+        var track = self.tracks.get(signaling.id);
+        var publication = self.trackPublications.get(signaling.sid);
+        if (track) {
+          self._removeTrack(track, publication);
+        }
       }
 
       signaling.on('trackAdded', trackSignalingAdded);
@@ -19886,7 +20339,7 @@ var Participant = function (_EventEmitter) {
 
       signaling.on('stateChanged', function stateChanged(state) {
         if (state === 'disconnected') {
-          log.debug('Removing TrackSignaling listeners');
+          log.debug('Removing event listeners');
           signaling.removeListener('stateChanged', stateChanged);
           signaling.removeListener('trackAdded', trackSignalingAdded);
           signaling.removeListener('trackRemoved', trackSignalingRemoved);
@@ -19902,22 +20355,22 @@ var Participant = function (_EventEmitter) {
   }, {
     key: '_deleteTrack',
     value: function _deleteTrack(track) {
-      this.tracks.delete(track.id);
+      this.tracks.delete(track._id);
 
       var tracksByKind = {
         audio: this.audioTracks,
         video: this.videoTracks,
         data: this.dataTracks
       }[track.kind];
-      tracksByKind.delete(track.id);
+      tracksByKind.delete(track._id);
 
-      var reemitters = this._trackEventReemitters.get(track.id) || new Map();
+      var reemitters = this._trackEventReemitters.get(track._id) || new Map();
       reemitters.forEach(function (reemitter, event) {
         track.removeListener(event, reemitter);
       });
 
       var log = this._log;
-      log.info('Removed a ' + util.trackClass(track) + ':', track.id);
+      log.info('Removed a ' + util.trackClass(track) + ':', track._id);
       log.debug(util.trackClass(track) + ':', track);
     }
 
@@ -19930,10 +20383,10 @@ var Participant = function (_EventEmitter) {
   }, {
     key: '_removeTrack',
     value: function _removeTrack(track) {
-      if (!this.tracks.has(track.id)) {
+      if (!this.tracks.has(track._id)) {
         return null;
       }
-      track = this.tracks.get(track.id);
+      track = this.tracks.get(track._id);
       this._deleteTrack(track);
       this.emit('trackRemoved', track);
       return track;
@@ -19971,6 +20424,25 @@ var Participant = function (_EventEmitter) {
       log.debug(util.trackPublicationClass(publication) + ':', publication);
       return publication;
     }
+  }, {
+    key: 'networkQualityLevel',
+    get: function get() {
+      return this._signaling.networkQualityLevel;
+    }
+
+    /**
+     * Get the current {@link NetworkQualityLevels}, if any.
+     * @private
+     * @deprecated - the decomposed levels are only used for debugging and will be
+     *   removed as soon as we are confident in our implementation
+     * @returns {?NetworkQualityLevels} networkQualityLevels - initially null
+     */
+
+  }, {
+    key: '_networkQualityLevels',
+    get: function get() {
+      return this._signaling.networkQualityLevels;
+    }
   }]);
 
   return Participant;
@@ -19996,9 +20468,17 @@ var Participant = function (_EventEmitter) {
  */
 
 /**
+ * The {@link Participant}'s {@link NetworkQualityLevel} changed.
+ * @param {NetworkQualityLevel} networkQualityLevel - The new
+ *   {@link NetworkQualityLevel}
+ * @event Participant#networkQualityLevelChanged
+ */
+
+/**
  * A {@link Track} was added by the {@link Participant}.
  * @param {Track} track - The {@link Track} that was added
  * @event Participant#trackAdded
+ * @deprecated
  */
 
 /**
@@ -20023,6 +20503,7 @@ var Participant = function (_EventEmitter) {
  * A {@link Track} was removed by the {@link Participant}.
  * @param {Track} track - The {@link Track} that was removed
  * @event Participant#trackRemoved
+ * @deprecated
  */
 
 /**
@@ -20054,7 +20535,7 @@ var Participant = function (_EventEmitter) {
 
 function indexTracksById(tracks) {
   var indexedTracks = tracks.map(function (track) {
-    return [track.id, track];
+    return [track._id, track];
   });
   var indexedAudioTracks = indexedTracks.filter(function (keyValue) {
     return keyValue[1].kind === 'audio';
@@ -20096,7 +20577,7 @@ function reemitSignalingStateChangedEvents(participant, signaling) {
       signaling.removeListener('stateChanged', stateChanged);
 
       participant.tracks.forEach(function (track) {
-        participant._trackEventReemitters.get(track.id).forEach(function (reemitter, event) {
+        participant._trackEventReemitters.get(track._id).forEach(function (reemitter, event) {
           track.removeListener(event, reemitter);
         });
       });
@@ -20137,7 +20618,7 @@ function reemitTrackEvents(participant, track) {
     track.on(trackEvent, trackEventReemitters.get(trackEvent));
   });
 
-  participant._trackEventReemitters.set(track.id, trackEventReemitters);
+  participant._trackEventReemitters.set(track._id, trackEventReemitters);
 }
 
 /**
@@ -20172,7 +20653,7 @@ function reemitTrackPublicationEvents(participant, publication) {
 }
 
 module.exports = Participant;
-},{"./media/track/remoteaudiotrack":84,"./media/track/remoteaudiotrackpublication":85,"./media/track/remotedatatrack":86,"./media/track/remotedatatrackpublication":87,"./media/track/remotevideotrack":90,"./media/track/remotevideotrackpublication":91,"./util":136,"events":156}],97:[function(require,module,exports){
+},{"./media/track/remoteaudiotrack":85,"./media/track/remoteaudiotrackpublication":86,"./media/track/remotedatatrack":87,"./media/track/remotedatatrackpublication":88,"./media/track/remotevideotrack":91,"./media/track/remotevideotrackpublication":92,"./util":153,"events":175}],98:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -20268,7 +20749,7 @@ var QueueingEventEmitter = function (_EventEmitter) {
 }(EventEmitter);
 
 module.exports = QueueingEventEmitter;
-},{"events":156}],98:[function(require,module,exports){
+},{"events":175}],99:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -20284,6 +20765,9 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
 var Participant = require('./participant');
+
+var _require = require('./util'),
+    deprecateEvents = _require.deprecateEvents;
 
 /**
  * A {@link RemoteParticipant} represents a remote {@link Participant} in a
@@ -20319,6 +20803,7 @@ var Participant = require('./participant');
  * @emits RemoteParticipant#trackUnsubscribed
  */
 
+
 var RemoteParticipant = function (_Participant) {
   _inherits(RemoteParticipant, _Participant);
 
@@ -20331,6 +20816,8 @@ var RemoteParticipant = function (_Participant) {
     _classCallCheck(this, RemoteParticipant);
 
     var _this = _possibleConstructorReturn(this, (RemoteParticipant.__proto__ || Object.getPrototypeOf(RemoteParticipant)).call(this, signaling, options));
+
+    deprecateEvents('RemoteParticipant', _this, new Map([['trackAdded', 'trackSubscribed'], ['trackRemoved', 'trackUnsubscribed']]), _this._log);
 
     _this._handleTrackSignalingEvents();
     _this.once('disconnected', _this._unsubscribeTracks.bind(_this));
@@ -20416,7 +20903,7 @@ var RemoteParticipant = function (_Participant) {
   }, {
     key: '_removeTrack',
     value: function _removeTrack(remoteTrack, publication) {
-      var unsubscribedTrack = this.tracks.get(remoteTrack.id);
+      var unsubscribedTrack = this.tracks.get(remoteTrack._id);
       if (!unsubscribedTrack) {
         return null;
       }
@@ -20453,6 +20940,7 @@ var RemoteParticipant = function (_Participant) {
  * A {@link RemoteTrack} was added by the {@link RemoteParticipant}.
  * @param {RemoteTrack} track - The {@link RemoteTrack} that was added
  * @event RemoteParticipant#trackAdded
+ * @deprecated Use {@link RemoteParticipant#trackSubscribed} instead
  */
 
 /**
@@ -20483,16 +20971,32 @@ var RemoteParticipant = function (_Participant) {
  */
 
 /**
- * A {@link RemoteTrack} was published by the {@link RemoteParticipant}.
+ * A {@link RemoteTrack} was published by the {@link RemoteParticipant} after
+ * connecting to the {@link Room}. This event is not emitted for
+ * {@link RemoteTrack}s that were published while the {@link RemoteParticipant}
+ * was connecting to the {@link Room}.
  * @event RemoteParticipant#trackPublished
  * @param {RemoteTrackPublication} publication - The {@link RemoteTrackPublication}
  *   which represents the published {@link RemoteTrack}
+ * @example
+ * function trackPublished(publication) {
+ *   console.log(`Track ${publication.trackSid} was published`);
+ * }
+ *
+ * room.on('participantConnected', participant => {
+ *   // Handle RemoteTracks published while connecting to the Room.
+ *   participant.trackPublications.forEach(trackPublished);
+ *
+ *   // Handle RemoteTracks published after connecting to the Room.
+ *   participant.on('trackPublished', trackPublished);
+ * });
  */
 
 /**
  * A {@link RemoteTrack} was removed by the {@link RemoteParticipant}.
  * @param {RemoteTrack} track - The {@link RemoteTrack} that was removed
  * @event RemoteParticipant#trackRemoved
+ * @deprecated Use {@link RemoteParticipant#trackUnsubscribed} instead
  */
 
 /**
@@ -20531,7 +21035,7 @@ var RemoteParticipant = function (_Participant) {
  */
 
 module.exports = RemoteParticipant;
-},{"./participant":96}],99:[function(require,module,exports){
+},{"./participant":97,"./util":153}],100:[function(require,module,exports){
 'use strict';
 
 var XHR = require('xmlhttprequest').XMLHttpRequest;
@@ -20584,7 +21088,7 @@ request.get = request.bind(null, 'GET');
 request.post = request.bind(null, 'POST');
 
 module.exports = request;
-},{"xmlhttprequest":153}],100:[function(require,module,exports){
+},{"xmlhttprequest":172}],101:[function(require,module,exports){
 'use strict';
 
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
@@ -20603,8 +21107,11 @@ var EventEmitter = require('events').EventEmitter;
 var RemoteParticipant = require('./remoteparticipant');
 var StatsReport = require('./stats/statsreport');
 
-var _require = require('./util/twilio-video-errors'),
-    MediaConnectionError = _require.MediaConnectionError;
+var _require = require('./util'),
+    deprecateEvents = _require.deprecateEvents;
+
+var _require2 = require('./util/twilio-video-errors'),
+    MediaConnectionError = _require2.MediaConnectionError;
 
 var nInstances = 0;
 
@@ -20615,6 +21122,8 @@ var nInstances = 0;
  * <br><br>
  * You can connect to a {@link Room} by calling {@link connect}.
  * @extends EventEmitter
+ * @property {?RemoteParticipant} dominantSpeaker - The Dominant Speaker in the
+ *   {@link Room}, if any
  * @property {boolean} isRecording - Whether or not the {@link Room} is being
  *   recorded
  * @property {LocalParticipant} localParticipant - Your {@link LocalParticipant}
@@ -20678,6 +21187,12 @@ var Room = function (_EventEmitter) {
       _signaling: {
         value: signaling
       },
+      dominantSpeaker: {
+        enumerable: true,
+        get: function get() {
+          return this.participants.get(signaling.dominantSpeakerSid) || null;
+        }
+      },
       isRecording: {
         enumerable: true,
         get: function get() {
@@ -20707,6 +21222,8 @@ var Room = function (_EventEmitter) {
         }
       }
     });
+
+    deprecateEvents('Room', _this, new Map([['trackAdded', 'trackSubscribed'], ['trackRemoved', 'trackUnsubscribed']]), log);
 
     handleRecordingEvents(_this, signaling.recording);
     handleSignalingEvents(_this, signaling);
@@ -20763,6 +21280,15 @@ var Room = function (_EventEmitter) {
  * that uniquely identifies a {@link Room}.
  * @type string
  * @typedef Room.SID
+ */
+
+/**
+ * The Dominant Speaker in the {@link Room} changed. Either the Dominant Speaker
+ * is a new {@link RemoteParticipant} or the Dominant Speaker has been reset and
+ * is now null.
+ * @param {?RemoteParticipant} dominantSpeaker - The Dominant Speaker in the
+ *   {@link Room}, if any
+ * @event Room#dominantSpeakerChanged
  */
 
 /**
@@ -20850,6 +21376,7 @@ var Room = function (_EventEmitter) {
  * @param {RemoteParticipant} participant - The {@link RemoteParticipant} who
  *   added the {@link RemoteTrack}
  * @event Room#trackAdded
+ * @deprecated Use {@link RemoteParticipant#trackSubscribed} instead
  * @example
  * room.on('trackAdded', function(track, participant) {
  *   var participantView = document.getElementById('participant-view-' + participant.identity);
@@ -20893,12 +21420,27 @@ var Room = function (_EventEmitter) {
  */
 
 /**
- * A {@link RemoteTrack} was published by a {@link RemoteParticipant} to the {@link Room}.
+ * A {@link RemoteTrack} was published by a {@link RemoteParticipant} after
+ * connecting to the {@link Room}. This event is not emitted for
+ * {@link RemoteTrack}s that were published while the {@link RemoteParticipant}
+ * was connecting to the {@link Room}.
  * @event Room#trackPublished
  * @param {RemoteTrackPublication} publication - The {@link RemoteTrackPublication}
  *   which represents the published {@link RemoteTrack}
  * @param {RemoteParticipant} participant - The {@link RemoteParticipant} who
  *   published the {@link RemoteTrack}
+ * @example
+ * function trackPublished(publication, participant) {
+ *   console.log(`RemoteParticipant ${participant.sid} published Track ${publication.trackSid}`);
+ * }
+ *
+ * // Handle RemoteTracks published after connecting to the Room.
+ * room.on('trackPublished', trackPublished);
+ *
+ * room.on('participantConnected', participant => {
+ *   // Handle RemoteTracks published while connecting to the Room.
+ *   participant.trackPublications.forEach(publication => trackPublished(publication, participant));
+ * });
  */
 
 /**
@@ -20907,6 +21449,7 @@ var Room = function (_EventEmitter) {
  * @param {RemoteParticipant} participant - The {@link RemoteParticipant} who
  *   removed the {@link RemoteTrack}
  * @event Room#trackRemoved
+ * @deprecated Use {@link RemoteParticipant#trackUnsubscribed} instead
  * @example
  * room.on('trackRemoved', function(track, participant) {
  *   track.detach().forEach(function(mediaElement) {
@@ -20980,25 +21523,31 @@ function connectParticipant(room, participantSignaling) {
   room.emit('participantConnected', participant);
 
   // Reemit Track events from the RemoteParticipant.
-  var eventListeners = ['trackAdded', 'trackDimensionsChanged', 'trackDisabled', 'trackEnabled', 'trackMessage', 'trackPublished', 'trackRemoved', 'trackStarted', 'trackSubscribed', 'trackSubscriptionFailed', 'trackUnpublished', 'trackUnsubscribed'].map(function (event) {
+  var eventListeners = [['trackSubscribed', 'trackAdded'], 'trackDimensionsChanged', 'trackDisabled', 'trackEnabled', 'trackMessage', 'trackPublished', ['trackUnsubscribed', 'trackRemoved'], 'trackStarted', 'trackSubscribed', 'trackSubscriptionFailed', 'trackUnpublished', 'trackUnsubscribed'].map(function (eventOrEventPair) {
+    var participantEvent = typeof eventOrEventPair === 'string' ? eventOrEventPair : eventOrEventPair[0];
+    var roomEvent = typeof eventOrEventPair === 'string' ? eventOrEventPair : eventOrEventPair[1];
     function reemit() {
       var args = [].slice.call(arguments);
-      args.unshift(event);
+      args.unshift(roomEvent);
       args.push(participant);
       room.emit.apply(room, _toConsumableArray(args));
     }
-    participant.on(event, reemit);
-    return [event, reemit];
+    participant.on(participantEvent, reemit);
+    return [participantEvent, reemit];
   });
 
   // Reemit state transition events from the RemoteParticipant.
   participant.once('disconnected', function participantDisconnected() {
+    var dominantSpeaker = room.dominantSpeaker;
     log.info('RemoteParticipant disconnected:', participant);
     room._participants.delete(participant.sid);
     eventListeners.forEach(function (args) {
       participant.removeListener(args[0], args[1]);
     });
     room.emit('participantDisconnected', participant);
+    if (participant === dominantSpeaker) {
+      room.emit('dominantSpeakerChanged', room.dominantSpeaker);
+    }
   });
 }
 
@@ -21018,6 +21567,10 @@ function handleSignalingEvents(room, signaling) {
   signaling.participants.forEach(connectParticipant.bind(null, room));
   log.debug('Setting up RemoteParticipant creation for all subsequent ' + 'ParticipantSignalings that connect to the RoomSignaling');
   signaling.on('participantConnected', connectParticipant.bind(null, room));
+
+  signaling.on('dominantSpeakerChanged', function () {
+    return room.emit('dominantSpeakerChanged', room.dominantSpeaker);
+  });
 
   // Reemit state transition events from the RoomSignaling.
   signaling.on('stateChanged', function stateChanged(state, error) {
@@ -21040,7 +21593,7 @@ function handleSignalingEvents(room, signaling) {
 }
 
 module.exports = Room;
-},{"./remoteparticipant":98,"./stats/statsreport":130,"./util/twilio-video-errors":148,"events":156}],101:[function(require,module,exports){
+},{"./remoteparticipant":99,"./stats/statsreport":145,"./util":153,"./util/twilio-video-errors":165,"events":175}],102:[function(require,module,exports){
 /* eslint consistent-return:0 */
 'use strict';
 
@@ -21234,7 +21787,7 @@ var Signaling = function (_StateMachine) {
 }(StateMachine);
 
 module.exports = Signaling;
-},{"../statemachine":123,"./participant":103,"./room":107}],102:[function(require,module,exports){
+},{"../statemachine":127,"./participant":104,"./room":108}],103:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -21330,7 +21883,7 @@ function setError(publication, error) {
 }
 
 module.exports = LocalTrackPublicationSignaling;
-},{"./track":108}],103:[function(require,module,exports){
+},{"./track":109}],104:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -21368,6 +21921,7 @@ var states = {
  * @property {?Participant.SID} sid
  * @property {string} state - "connecting", "connected", or "disconnected"
  * @property {Map<string, TrackSignaling>} tracks
+ * @emits ParticipantSignaling#networkQualityLevelChanged
  * @emits ParticipantSignaling#trackAdded
  * @emits ParticipantSignaling#trackRemoved
  */
@@ -21387,6 +21941,14 @@ var ParticipantSignaling = function (_StateMachine) {
       _identity: {
         writable: true,
         value: null
+      },
+      _networkQualityLevel: {
+        value: null,
+        writable: true
+      },
+      _networkQualityLevels: {
+        value: null,
+        writable: true
       },
       _sid: {
         writable: true,
@@ -21413,16 +21975,22 @@ var ParticipantSignaling = function (_StateMachine) {
   }
 
   /**
-   * Add the {@link TrackSignaling}, MediaStreamTrack, or
-   * {@link DataTrackSender} to the {@link ParticipantSignaling}.
-   * @param {TrackSignaling|DataTrackSender|MediaTrackSender} track
-   * @returns {this}
-   * @fires ParticipantSignaling#trackAdded
+   * Get the current {@link NetworkQualityLevel}, if any.
+   * @returns {?NetworkQualityLevel} networkQualityLevel - initially null
    */
 
 
   _createClass(ParticipantSignaling, [{
     key: 'addTrack',
+
+
+    /**
+     * Add the {@link TrackSignaling}, MediaStreamTrack, or
+     * {@link DataTrackSender} to the {@link ParticipantSignaling}.
+     * @param {TrackSignaling|DataTrackSender|MediaTrackSender} track
+     * @returns {this}
+     * @fires ParticipantSignaling#trackAdded
+     */
     value: function addTrack(track) {
       this.tracks.set(track.id, track);
       this.emit('trackAdded', track);
@@ -21463,6 +22031,27 @@ var ParticipantSignaling = function (_StateMachine) {
     }
 
     /**
+     * @param {NetworkQualityLevel} networkQualityLevel
+     * @param {?NetworkQualityLevels} [networkQualityLevels=null] - deprecated;
+     *   the decomposed levels are only used for debugging and will be removed as
+     *   soon as we are confident in our implementation
+     * @returns {void}
+     */
+
+  }, {
+    key: 'setNetworkQualityLevel',
+    value: function setNetworkQualityLevel(networkQualityLevel, networkQualityLevels) {
+      if (networkQualityLevels) {
+        this._networkQualityLevels = networkQualityLevels;
+      }
+
+      if (this._networkQualityLevel !== networkQualityLevel) {
+        this._networkQualityLevel = networkQualityLevel;
+        this.emit('networkQualityLevelChanged');
+      }
+    }
+
+    /**
      * Connect the {@link ParticipantSignaling}.
      * @param {Participant.SID} sid
      * @param {string} identity
@@ -21480,10 +22069,32 @@ var ParticipantSignaling = function (_StateMachine) {
       }
       return false;
     }
+  }, {
+    key: 'networkQualityLevel',
+    get: function get() {
+      return this._networkQualityLevel;
+    }
+
+    /**
+     * Get the current {@link NetworkQualityLevels}, if any.
+     * @deprecated - the decomposed levels are only used for debugging and will be
+     *   removed as soon as we are confident in our implementation
+     * @returns {?NetworkQualityLevels} networkQualityLevels - initially null
+     */
+
+  }, {
+    key: 'networkQualityLevels',
+    get: function get() {
+      return this._networkQualityLevels;
+    }
   }]);
 
   return ParticipantSignaling;
 }(StateMachine);
+
+/**
+ * @event ParticipantSignaling#event:networkQualityLevelChanged
+ */
 
 /**
  * {@link TrackSignaling} was added to the {@link ParticipantSignaling}.
@@ -21498,7 +22109,7 @@ var ParticipantSignaling = function (_StateMachine) {
  */
 
 module.exports = ParticipantSignaling;
-},{"../statemachine":123}],104:[function(require,module,exports){
+},{"../statemachine":127}],105:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -21583,7 +22194,7 @@ var RecordingSignaling = function (_EventEmitter) {
  */
 
 module.exports = RecordingSignaling;
-},{"events":156}],105:[function(require,module,exports){
+},{"events":175}],106:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -21622,7 +22233,7 @@ var RemoteParticipantSignaling = function (_ParticipantSignaling) {
 }(ParticipantSignaling);
 
 module.exports = RemoteParticipantSignaling;
-},{"./participant":103}],106:[function(require,module,exports){
+},{"./participant":104}],107:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -21638,8 +22249,6 @@ var TrackSignaling = require('./track');
 /**
  * A {@link RemoteTrackPublication} implementation
  * @extends TrackSignaling
- * @property {boolean} isSubscribed
- * @property {?Error} error - non-null if subscription failed
  */
 
 var RemoteTrackPublicationSignaling = function (_TrackSignaling) {
@@ -21662,18 +22271,6 @@ var RemoteTrackPublicationSignaling = function (_TrackSignaling) {
       _error: {
         value: null,
         writable: true
-      },
-      error: {
-        enumerable: true,
-        get: function get() {
-          return this._error;
-        }
-      },
-      isSubscribed: {
-        enumerable: true,
-        get: function get() {
-          return !!this._trackTransceiver;
-        }
       }
     });
     _this.setSid(sid);
@@ -21681,19 +22278,41 @@ var RemoteTrackPublicationSignaling = function (_TrackSignaling) {
   }
 
   /**
-   * @param {Error} error
-   * @returns {this}
+   * Non-null if subscription failed.
+   * @property {?Error}
    */
 
 
   _createClass(RemoteTrackPublicationSignaling, [{
     key: 'subscribeFailed',
+
+
+    /**
+     * @param {Error} error
+     * @returns {this}
+     */
     value: function subscribeFailed(error) {
-      if (!this._error) {
+      if (!this.error) {
         this._error = error;
         this.emit('updated');
       }
       return this;
+    }
+  }, {
+    key: 'error',
+    get: function get() {
+      return this._error;
+    }
+
+    /**
+     * Whether the {@link RemoteTrackPublicationSignaling} is subscribed to.
+     * @property {boolean}
+     */
+
+  }, {
+    key: 'isSubscribed',
+    get: function get() {
+      return !!this.trackTransceiver;
     }
   }]);
 
@@ -21701,7 +22320,7 @@ var RemoteTrackPublicationSignaling = function (_TrackSignaling) {
 }(TrackSignaling);
 
 module.exports = RemoteTrackPublicationSignaling;
-},{"./track":108}],107:[function(require,module,exports){
+},{"./track":109}],108:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -21743,6 +22362,7 @@ var states = {
 /**
  * A {@link Room} implementation
  * @extends StateMachine
+ * @property {?Participant.SID} dominantSpeakerSid
  * @property {ParticipantSignaling} localParticipant
  * @property {RTCIceConnectionState} mediaConnectionState
  * @property {string} name
@@ -21783,6 +22403,11 @@ var RoomSignaling = function (_StateMachine) {
       },
       _options: {
         value: options
+      },
+      dominantSpeakerSid: {
+        enumerable: true,
+        value: null,
+        writable: true
       },
       localParticipant: {
         enumerable: true,
@@ -21877,10 +22502,27 @@ var RoomSignaling = function (_StateMachine) {
     value: function disconnect() {
       return this._disconnect();
     }
+
+    /**
+     * Set (or unset) the Dominant Speaker.
+     * @param {?Participant.SID} dominantSpeakerSid
+     * @returns {void}
+     */
+
+  }, {
+    key: 'setDominantSpeaker',
+    value: function setDominantSpeaker(dominantSpeakerSid) {
+      this.dominantSpeakerSid = dominantSpeakerSid;
+      this.emit('dominantSpeakerChanged');
+    }
   }]);
 
   return RoomSignaling;
 }(StateMachine);
+
+/**
+ * @event RoomSignaling#event:dominantSpeakerChanged
+ */
 
 /**
  * {@link RemoteParticipantSignaling} connected to the {@link RoomSignaling}.
@@ -21909,13 +22551,13 @@ var RoomSignaling = function (_StateMachine) {
 
 
 function maybeUpdateState(roomSignaling) {
-  if (roomSignaling.state === 'disconnected') {
+  if (roomSignaling.state === 'disconnected' || roomSignaling.signalingConnectionState === 'disconnected') {
     return;
   }
 
   var newState = void 0;
 
-  if (roomSignaling.signalingConnectionState === 'reconnecting' || roomSignaling.signalingConnectionState === 'disconnected') {
+  if (roomSignaling.signalingConnectionState === 'reconnecting') {
     newState = roomSignaling.signalingConnectionState;
   } else if (roomSignaling.mediaConnectionState === 'failed') {
     roomSignaling._mediaConnectionIsReconnecting = true;
@@ -21935,7 +22577,7 @@ function maybeUpdateState(roomSignaling) {
 }
 
 module.exports = RoomSignaling;
-},{"../statemachine":123,"./recording":104}],108:[function(require,module,exports){
+},{"../statemachine":127,"./recording":105}],109:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -21946,18 +22588,17 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-var EventEmitter = require('events').EventEmitter;
-var util = require('../util');
+var _require = require('events'),
+    EventEmitter = _require.EventEmitter;
 
 /**
  * A {@link Track} implementation
  * @extends EventEmitter
  * @property {Track.ID} id
- * @property {boolean} isEnabled
  * @property {Track.Kind} kind
- * @property {?TrackTransceiver} trackTransceiver
- * @property {?Track.SID} sid
+ * @property {string} name
  */
+
 
 var TrackSignaling = function (_EventEmitter) {
   _inherits(TrackSignaling, _EventEmitter);
@@ -21975,25 +22616,14 @@ var TrackSignaling = function (_EventEmitter) {
     var _this = _possibleConstructorReturn(this, (TrackSignaling.__proto__ || Object.getPrototypeOf(TrackSignaling)).call(this));
 
     var sid = null;
-    var trackTransceiver = null;
     Object.defineProperties(_this, {
       _isEnabled: {
         value: isEnabled,
         writable: true
       },
       _trackTransceiver: {
-        get: function get() {
-          return trackTransceiver;
-        },
-        set: function set(_trackTransceiver) {
-          if (trackTransceiver === null) {
-            trackTransceiver = _trackTransceiver;
-            this._trackTransceiverDeferred.resolve(trackTransceiver);
-          }
-        }
-      },
-      _trackTransceiverDeferred: {
-        value: util.defer()
+        value: null,
+        writable: true
       },
       _sid: {
         get: function get() {
@@ -22009,44 +22639,32 @@ var TrackSignaling = function (_EventEmitter) {
         enumerable: true,
         value: id
       },
-      isEnabled: {
-        enumerable: true,
-        get: function get() {
-          return this._isEnabled;
-        }
-      },
       kind: {
         enumerable: true,
         value: kind
       },
-      trackTransceiver: {
-        enumerable: true,
-        get: function get() {
-          return trackTransceiver;
-        }
-      },
       name: {
         enumerable: true,
         value: name
-      },
-      sid: {
-        enumerable: true,
-        get: function get() {
-          return sid;
-        }
       }
     });
     return _this;
   }
 
   /**
-   * Disable the {@link TrackSignaling} if it is not already disabled.
-   * @return {this}
+   * Whether the {@link TrackSignaling} is enabled.
+   * @property {boolean}
    */
 
 
   _createClass(TrackSignaling, [{
     key: 'disable',
+
+
+    /**
+     * Disable the {@link TrackSignaling} if it is not already disabled.
+     * @return {this}
+     */
     value: function disable() {
       return this.enable(false);
     }
@@ -22070,17 +22688,6 @@ var TrackSignaling = function (_EventEmitter) {
     }
 
     /**
-     * Get the {@link TrackTransceiver} on the @link TrackSignaling}.
-     * @returns {Promise<TrackTransceiver>}
-     */
-
-  }, {
-    key: 'getTrackTransceiver',
-    value: function getTrackTransceiver() {
-      return this._trackTransceiverDeferred.promise;
-    }
-
-    /**
      * Set the {@link TrackTransceiver} on the {@link TrackSignaling}.
      * @param {TrackTransceiver} trackTransceiver
      * @returns {this}
@@ -22089,7 +22696,11 @@ var TrackSignaling = function (_EventEmitter) {
   }, {
     key: 'setTrackTransceiver',
     value: function setTrackTransceiver(trackTransceiver) {
-      this._trackTransceiver = trackTransceiver;
+      trackTransceiver = trackTransceiver || null;
+      if (this.trackTransceiver !== trackTransceiver) {
+        this._trackTransceiver = trackTransceiver;
+        this.emit('updated');
+      }
       return this;
     }
 
@@ -22102,11 +22713,38 @@ var TrackSignaling = function (_EventEmitter) {
   }, {
     key: 'setSid',
     value: function setSid(sid) {
-      if (this._sid === null) {
+      if (this.sid === null) {
         this._sid = sid;
         this.emit('updated');
       }
       return this;
+    }
+  }, {
+    key: 'isEnabled',
+    get: function get() {
+      return this._isEnabled;
+    }
+
+    /**
+     * The {@link TrackSignaling}'s {@link Track.SID}.
+     * @property {Track.SID}
+     */
+
+  }, {
+    key: 'sid',
+    get: function get() {
+      return this._sid;
+    }
+
+    /**
+     * The {@link TrackSignaling}'s {@link TrackTransceiver}.
+     * @property {TrackTransceiver}
+     */
+
+  }, {
+    key: 'trackTransceiver',
+    get: function get() {
+      return this._trackTransceiver;
     }
   }]);
 
@@ -22119,7 +22757,7 @@ var TrackSignaling = function (_EventEmitter) {
  */
 
 module.exports = TrackSignaling;
-},{"../util":136,"events":156}],109:[function(require,module,exports){
+},{"events":175}],110:[function(require,module,exports){
 'use strict';
 
 var CancelablePromise = require('../../util/cancelablepromise');
@@ -22178,9 +22816,13 @@ function createCancelableRoomSignalingPromise(token, ua, localParticipant, iceSe
         }
 
         transportOptions = Object.assign({
+          dominantSpeaker: options.dominantSpeaker,
           environment: options.environment,
+          networkQuality: options.networkQuality,
+          iceServerSourceStatus: iceServerSource.status,
           insights: options.insights,
-          realm: options.realm
+          realm: options.realm,
+          sdpSemantics: options.sdpSemantics
         }, transportOptions);
 
         var Transport = options.Transport;
@@ -22234,7 +22876,95 @@ function createCancelableRoomSignalingPromise(token, ua, localParticipant, iceSe
 }
 
 module.exports = createCancelableRoomSignalingPromise;
-},{"../../util":136,"../../util/cancelablepromise":133,"../../util/twilio-video-errors":148,"./peerconnectionmanager":115,"./room":119,"./transport":121}],110:[function(require,module,exports){
+},{"../../util":153,"../../util/cancelablepromise":150,"../../util/twilio-video-errors":165,"./peerconnectionmanager":119,"./room":123,"./transport":125}],111:[function(require,module,exports){
+'use strict';
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var _require = require('events'),
+    EventEmitter = _require.EventEmitter;
+
+/**
+ * @property {?Track.SID} loudestParticipantSid
+ * @emits DominantSpeakerSignaling#updated
+ */
+
+
+var DominantSpeakerSignaling = function (_EventEmitter) {
+  _inherits(DominantSpeakerSignaling, _EventEmitter);
+
+  /**
+   * Construct an {@link DominantSpeakerSignaling}.
+   * @param {MediaSignalingTransport} mediaSignalingTransport
+   */
+  function DominantSpeakerSignaling(mediaSignalingTransport) {
+    _classCallCheck(this, DominantSpeakerSignaling);
+
+    var _this = _possibleConstructorReturn(this, (DominantSpeakerSignaling.__proto__ || Object.getPrototypeOf(DominantSpeakerSignaling)).call(this));
+
+    Object.defineProperties(_this, {
+      _loudestParticipantSid: {
+        value: null,
+        writable: true
+      }
+    });
+
+    mediaSignalingTransport.on('message', function (message) {
+      switch (message.type) {
+        case 'active_speaker':
+          _this._setLoudestParticipantSid(message.participant);
+          break;
+        default:
+          break;
+      }
+    });
+    return _this;
+  }
+
+  /**
+   * Get the loudest {@link Track.SID}, if known.
+   * @returns {?Track.SID}
+   */
+
+
+  _createClass(DominantSpeakerSignaling, [{
+    key: '_setLoudestParticipantSid',
+
+
+    /**
+     * @private
+     * @param {Track.SID} loudestParticipantSid
+     * @returns {void}
+     */
+    value: function _setLoudestParticipantSid(loudestParticipantSid) {
+      if (this.loudestParticipantSid === loudestParticipantSid) {
+        return;
+      }
+      this._loudestParticipantSid = loudestParticipantSid;
+      this.emit('updated');
+    }
+  }, {
+    key: 'loudestParticipantSid',
+    get: function get() {
+      return this._loudestParticipantSid;
+    }
+  }]);
+
+  return DominantSpeakerSignaling;
+}(EventEmitter);
+
+/**
+ * @event DominantSpeakerSignaling#updated
+ */
+
+module.exports = DominantSpeakerSignaling;
+},{"events":175}],112:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -22320,7 +23050,7 @@ var IceBox = function () {
 }();
 
 module.exports = IceBox;
-},{"../../util/filter":135}],111:[function(require,module,exports){
+},{"../../util/filter":152}],113:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -22465,7 +23195,7 @@ var SignalingV2 = function (_Signaling) {
 }(Signaling);
 
 module.exports = SignalingV2;
-},{"../":101,"../../sip":122,"../../util":136,"../../util/constants":134,"./cancelableroomsignalingpromise":109,"./localparticipant":112,"./sipjsmediahandler":120}],112:[function(require,module,exports){
+},{"../":102,"../../sip":126,"../../util":153,"../../util/constants":151,"./cancelableroomsignalingpromise":110,"./localparticipant":114,"./sipjsmediahandler":124}],114:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -22725,7 +23455,7 @@ var LocalParticipantV2 = function (_ParticipantSignaling) {
  */
 
 module.exports = LocalParticipantV2;
-},{"../participant":103,"./localtrackpublication":113}],113:[function(require,module,exports){
+},{"../participant":104,"./localtrackpublication":115}],115:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -22817,7 +23547,391 @@ var LocalTrackPublicationV2 = function (_LocalTrackPublicatio) {
  */
 
 module.exports = LocalTrackPublicationV2;
-},{"../../util/twilio-video-errors":148,"../localtrackpublication":102}],114:[function(require,module,exports){
+},{"../../util/twilio-video-errors":165,"../localtrackpublication":103}],116:[function(require,module,exports){
+/* eslint callback-return:0 */
+'use strict';
+
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var EventEmitter = require('events');
+
+var PeerConnectionReportFactory = require('../../stats/peerconnectionreportfactory');
+
+/**
+ * @emits NetworkQualityMonitor#updated
+ */
+
+var NetworkQualityMonitor = function (_EventEmitter) {
+  _inherits(NetworkQualityMonitor, _EventEmitter);
+
+  /**
+   * Construct a {@link NetworkQualityMonitor}.
+   * @param {PeerConnectionManager} manager
+   * @param {NetworkQualitySignaling} signaling
+   */
+  function NetworkQualityMonitor(manager, signaling) {
+    _classCallCheck(this, NetworkQualityMonitor);
+
+    var _this = _possibleConstructorReturn(this, (NetworkQualityMonitor.__proto__ || Object.getPrototypeOf(NetworkQualityMonitor)).call(this));
+
+    Object.defineProperties(_this, {
+      _factories: {
+        value: new WeakMap()
+      },
+      _manager: {
+        value: manager
+      },
+      _signaling: {
+        value: signaling
+      }
+    });
+    signaling.on('updated', function () {
+      return _this.emit('updated');
+    });
+    return _this;
+  }
+
+  /**
+   * Get the current {@link NetworkQualityLevel}, if any.
+   * @returns {?NetworkQualityLevel} level - initially null
+   */
+
+
+  _createClass(NetworkQualityMonitor, [{
+    key: 'start',
+
+
+    /**
+     * Start monitoring.
+     * @returns {void}
+     */
+    value: function start() {
+      var _this2 = this;
+
+      this.stop();
+      var timeout = setTimeout(function () {
+        if (_this2._timeout !== timeout) {
+          return;
+        }
+        next(_this2).then(function (reports) {
+          if (_this2._timeout !== timeout) {
+            return;
+          }
+          if (reports.length) {
+            var _reports = _slicedToArray(reports, 1),
+                report = _reports[0];
+
+            _this2._signaling.put(report);
+          }
+          _this2.start();
+        });
+      }, 200);
+      this._timeout = timeout;
+    }
+
+    /**
+     * Stop monitoring.
+     * @returns {void}
+     */
+
+  }, {
+    key: 'stop',
+    value: function stop() {
+      clearTimeout(this._timeout);
+      this._timeout = null;
+    }
+  }, {
+    key: 'level',
+    get: function get() {
+      return this._signaling.level;
+    }
+
+    /**
+     * Get the current {@link NetworkQualityLevels}, if any.
+     * @deprecated - the decomposed levels are only used for debugging and will be
+     *   removed as soon as we are confident in our implementation
+     * @returns {?NetworkQualityLevels} levels - initially null
+     */
+
+  }, {
+    key: 'levels',
+    get: function get() {
+      return this._signaling.levels;
+    }
+  }]);
+
+  return NetworkQualityMonitor;
+}(EventEmitter);
+
+/**
+ * @param {NetworkQualityMonitor}
+ * @returns {Promise<NetworkQualityInputs>}
+ */
+
+
+function next(monitor) {
+  var pcv2s = monitor._manager._peerConnections ? Array.from(monitor._manager._peerConnections.values()) : [];
+
+  var pcs = pcv2s.map(function (pcv2) {
+    return pcv2._peerConnection;
+  }).filter(function (pc) {
+    return pc.signalingState !== 'closed';
+  });
+
+  var factories = pcs.map(function (pc) {
+    if (monitor._factories.has(pc)) {
+      return monitor._factories.get(pc);
+    }
+    var factory = new PeerConnectionReportFactory(pc);
+    monitor._factories.set(pc, factory);
+    return factory;
+  });
+
+  var reportsOrNullPromises = factories.map(function (factory) {
+    return factory.next().catch(function () {
+      return null;
+    });
+  });
+
+  return Promise.all(reportsOrNullPromises).then(function (reportsOrNull) {
+    return reportsOrNull.filter(function (reportOrNull) {
+      return reportOrNull;
+    }).map(function (report) {
+      return report.summarize();
+    });
+  });
+}
+
+/**
+ * The {@link NetworkQualityLevel} changed.
+ * @event NetworkQualityMonitor#updated
+ */
+
+module.exports = NetworkQualityMonitor;
+},{"../../stats/peerconnectionreportfactory":135,"events":175}],117:[function(require,module,exports){
+'use strict';
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var _require = require('events'),
+    EventEmitter = _require.EventEmitter;
+
+var AsyncVar = require('../../util/asyncvar');
+
+/**
+ * @interface MediaSignalingTransport
+ * @property {function(object): boolean} send
+ * @emits MediaSignalingTransport#message
+ */
+
+/**
+ * The {@link MediaSignalingTransport} received a message.
+ * @event MediaSignalingTransport#message
+ * @param {object} message
+ */
+
+/**
+ * @interface SendAndReceiveLevels
+ * @deprecated - the decomposed levels are only used for debugging and will be
+ *   removed as soon as we are confident in our implementation
+ * @property {number} send
+ * @property {number} recv
+ */
+
+/**
+ * @interface NetworkQualityLevels
+ * @deprecated - the decomposed levels are only used for debugging and will be
+ *   removed as soon as we are confident in our implementation
+ * @property {SendAndReceiveLevels} audio
+ * @property {SendAndReceiveLevels} video
+ */
+
+/**
+ * @typedef {PeerConnectionSummary} NetworkQualityInputs
+ */
+
+/**
+ * @classdesc The {@link NetworkQualitySignaling} class allows submitting
+ *   {@link NetworkQualityInputs} for computing {@link NetworkQualityLevel}. It
+ *   does so by sending and receivin messages over a
+ *   {@link MediaSignalingTransport}. The exact transport used depends on the
+ *   topology of the {@link Room} that {@link NetworkQualitySignaling} is being
+ *   used within: for P2P Rooms, we re-use the {@link TransportV2}; and for
+ *   Group Rooms, we use a {@link DataTransport}.
+ * @emits NetworkQualitySignaling#updated
+ */
+
+var NetworkQualitySignaling = function (_EventEmitter) {
+  _inherits(NetworkQualitySignaling, _EventEmitter);
+
+  /**
+   * Construct a {@link NetworkQualitySignaling}.
+   * @param {MediaSignalingTransport} mediaSignalingTransport
+   */
+  function NetworkQualitySignaling(mediaSignalingTransport) {
+    _classCallCheck(this, NetworkQualitySignaling);
+
+    var _this = _possibleConstructorReturn(this, (NetworkQualitySignaling.__proto__ || Object.getPrototypeOf(NetworkQualitySignaling)).call(this));
+
+    Object.defineProperties(_this, {
+      _level: {
+        value: null,
+        writable: true
+      },
+      _levels: {
+        value: null,
+        writable: true
+      },
+      _mediaSignalingTransport: {
+        value: mediaSignalingTransport
+      },
+      _networkQualityInputs: {
+        value: new AsyncVar()
+      }
+    });
+
+    mediaSignalingTransport.on('message', function (message) {
+      switch (message.type) {
+        case 'network_quality':
+          _this._handleNetworkQualityMessage(message);
+          break;
+        default:
+          break;
+      }
+    });
+
+    _this._sendNetworkQualityInputs();
+    return _this;
+  }
+
+  /**
+   * Get the current {@link NetworkQualityLevel}, if any.
+   * @returns {?NetworkQualityLevel} level - initially null
+   */
+
+
+  _createClass(NetworkQualitySignaling, [{
+    key: '_handleNetworkQualityMessage',
+
+
+    /**
+     * Check to see if the {@link NetworkQualityLevel} is new, and raise an
+     * event if necessary.
+     * @private
+     * @param {object} message
+     * @returns {void}
+     */
+    value: function _handleNetworkQualityMessage(message) {
+      var _this2 = this;
+
+      var level = null;
+      var local = message ? message.local : null;
+      if (typeof local === 'number') {
+        // NOTE(mroberts): In prod, we plan to only send the level.
+        level = local;
+        this._levels = null;
+      } else if ((typeof local === 'undefined' ? 'undefined' : _typeof(local)) === 'object' && local) {
+        // NOTE(mroberts): In dev, we plan to send the decomposed levels. An early
+        // VMS version does not compute `level` for us, so we fallback to taking
+        // the minimum ourselves.
+        this._levels = local;
+        level = typeof local.level === 'number' ? local.level : Math.min(local.audio.send, local.audio.recv, local.video.send, local.video.recv);
+      }
+      if (level !== null && this.level !== level) {
+        this._level = level;
+        this.emit('updated');
+      }
+      setTimeout(function () {
+        return _this2._sendNetworkQualityInputs();
+      }, 1000);
+    }
+
+    /**
+     * Start sending {@link NetworkQualityInputs}.
+     * @private
+     * @returns {Promise<void>}
+     */
+
+  }, {
+    key: '_sendNetworkQualityInputs',
+    value: function _sendNetworkQualityInputs() {
+      var _this3 = this;
+
+      return this._networkQualityInputs.take().then(function (networkQualityInputs) {
+        _this3._mediaSignalingTransport.publish(createNetworkQualityInputsMessage(networkQualityInputs));
+      });
+    }
+
+    /**
+     * Put {@link NetworkQualityInputs} to be used for computing
+     * {@link NetworkQualityLevel}.
+     * @param {NetworkQualityInputs} networkQualityInputs
+     * @returns {void}
+     */
+
+  }, {
+    key: 'put',
+    value: function put(networkQualityInputs) {
+      this._networkQualityInputs.put(networkQualityInputs);
+    }
+  }, {
+    key: 'level',
+    get: function get() {
+      return this._level;
+    }
+
+    /**
+     * Get the current {@link NetworkQualityLevels}, if any.
+     * @deprecated - the decomposed levels are only used for debugging and will be
+     *  removed as soon as we are confident in our implementation
+     * @returns {?NetworkQualityLevels} levels - initially null
+     */
+
+  }, {
+    key: 'levels',
+    get: function get() {
+      return this._levels;
+    }
+  }]);
+
+  return NetworkQualitySignaling;
+}(EventEmitter);
+
+/**
+ * The {@link NetworkQualityLevel} changed.
+ * @event NetworkQualitySignaling#updated
+ */
+
+/**
+ * @param {NetworkQualityInputs} networkQualityInputs
+ * @returns {object} message
+ */
+
+
+function createNetworkQualityInputsMessage(networkQualityInputs) {
+  return Object.assign({
+    type: 'network_quality'
+  }, networkQualityInputs);
+}
+
+module.exports = NetworkQualitySignaling;
+},{"../../util/asyncvar":149,"events":175}],118:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -22850,7 +23964,9 @@ var MediaTrackReceiver = require('../../media/track/receiver');
 var StateMachine = require('../../statemachine');
 
 var _require = require('../../util'),
-    buildLogLevels = _require.buildLogLevels;
+    buildLogLevels = _require.buildLogLevels,
+    getSdpFormat = _require.getSdpFormat,
+    makeUUID = _require.makeUUID;
 
 var _require2 = require('../../util/constants'),
     DEFAULT_LOG_LEVEL = _require2.DEFAULT_LOG_LEVEL;
@@ -22916,6 +24032,7 @@ var PeerConnectionV2 = function (_StateMachine) {
     var _this = _possibleConstructorReturn(this, (PeerConnectionV2.__proto__ || Object.getPrototypeOf(PeerConnectionV2)).call(this, 'open', states));
 
     options = Object.assign({
+      dummyAudioMediaStreamTrack: null,
       iceServers: [],
       logLevel: DEFAULT_LOG_LEVEL,
       offerOptions: {},
@@ -22931,7 +24048,22 @@ var PeerConnectionV2 = function (_StateMachine) {
     var configuration = getConfiguration(options);
     var logLevels = buildLogLevels(options.logLevel);
     var RTCPeerConnection = options.RTCPeerConnection;
-    var peerConnection = new RTCPeerConnection(configuration);
+    var peerConnection = new RTCPeerConnection(configuration, options.chromeSpecificConstraints);
+    var sdpFormat = getSdpFormat(options.sdpSemantics);
+
+    var localMediaStream = isFirefox && RTCPeerConnection.prototype.addTransceiver ? null : new options.MediaStream();
+
+    if (options.dummyAudioMediaStreamTrack) {
+      peerConnection.addTrack(options.dummyAudioMediaStreamTrack, localMediaStream || new MediaStream());
+    }
+
+    // NOTE(mroberts): We do this to workaround the following bug:
+    //
+    //   https://bugzilla.mozilla.org/show_bug.cgi?id=1481335
+    //
+    if (isFirefox) {
+      peerConnection.createDataChannel(makeUUID());
+    }
 
     Object.defineProperties(_this, {
       _dataChannels: {
@@ -22972,7 +24104,7 @@ var PeerConnectionV2 = function (_StateMachine) {
         value: null
       },
       _localMediaStream: {
-        value: new options.MediaStream()
+        value: localMediaStream
       },
       _localUfrag: {
         writable: true,
@@ -23015,6 +24147,9 @@ var PeerConnectionV2 = function (_StateMachine) {
       _remoteCandidates: {
         writable: true,
         value: new IceBox()
+      },
+      _sdpFormat: {
+        value: sdpFormat
       },
       _setBitrateParameters: {
         value: options.setBitrateParameters
@@ -23321,7 +24456,12 @@ var PeerConnectionV2 = function (_StateMachine) {
       var sdp = this._peerConnection.remoteDescription ? this._peerConnection.remoteDescription.sdp : null;
 
       if (!this._trackMatcher) {
-        this._trackMatcher = event.transceiver && event.transceiver.mid ? new MIDTrackMatcher() : isSafari ? new OrderedTrackMatcher() : new IdentityTrackMatcher();
+        this._trackMatcher = event.transceiver && event.transceiver.mid ? new MIDTrackMatcher()
+        // NOTE(mroberts): Until Chrome ships RTCRtpTransceivers with MID
+        // support, we have to use the same hacky solution as Safari. Revisit
+        // this when RTCRtpTransceivers and MIDs land. We should be able to use
+        // the same technique as Firefox.
+        : isSafari || this._sdpFormat === 'unified' ? new OrderedTrackMatcher() : new IdentityTrackMatcher();
       }
       this._trackMatcher.update(sdp);
 
@@ -23489,12 +24629,26 @@ var PeerConnectionV2 = function (_StateMachine) {
       if (description.sdp) {
         description.sdp = this._setBitrateParameters(description.sdp, isFirefox ? 'TIAS' : 'AS', this._encodingParameters.maxAudioBitrate, this._encodingParameters.maxVideoBitrate);
         description.sdp = this._setCodecPreferences(description.sdp, this._preferredAudioCodecs, this._preferredVideoCodecs);
+        // NOTE(mroberts): Do this to reduce our MediaStream count in Firefox. By
+        // mapping MediaStream IDs in the SDP to "-", we ensure the "track" event
+        // doesn't include any new MediaStreams in Firefox. Its `streams` member
+        // will always be the empty Array.
+        if (isFirefox) {
+          description.sdp = filterOutMediaStreamIds(description.sdp);
+        }
       }
       description = new this._RTCSessionDescription(description);
       return this._peerConnection.setRemoteDescription(description).then(function () {
         if (description.type === 'answer' && _this9._isRestartingIce) {
           _this9._log.debug('An ICE restart was in-progress and is now completed');
           _this9._isRestartingIce = false;
+        }
+        if (_this9._sdpFormat === 'unified' && _this9._peerConnection.getTransceivers()) {
+          _this9._peerConnection.getTransceivers().forEach(function (transceiver) {
+            if (shouldStopTransceiver(description.sdp, transceiver)) {
+              transceiver.stop();
+            }
+          });
         }
       }, function (error) {
         _this9._log.warn('Calling setRemoteDescription with an RTCSessionDescription of type "' + description.type + '" failed with the error "' + error.message + '".');
@@ -23632,8 +24786,14 @@ var PeerConnectionV2 = function (_StateMachine) {
       if (this._peerConnection.signalingState === 'closed' || this._rtpSenders.has(mediaTrackSender)) {
         return;
       }
-      this._localMediaStream.addTrack(mediaTrackSender.track);
-      var sender = this._peerConnection.addTrack(mediaTrackSender.track, this._localMediaStream);
+      var sender = void 0;
+      if (this._localMediaStream) {
+        this._localMediaStream.addTrack(mediaTrackSender.track);
+        sender = this._peerConnection.addTrack(mediaTrackSender.track, this._localMediaStream);
+      } else {
+        var transceiver = this._peerConnection.addTransceiver(mediaTrackSender.track);
+        sender = transceiver.sender;
+      }
       mediaTrackSender.addSender(sender);
       this._rtpSenders.set(mediaTrackSender, sender);
     }
@@ -23746,7 +24906,9 @@ var PeerConnectionV2 = function (_StateMachine) {
       }
       var sender = this._rtpSenders.get(mediaTrackSender);
       this._peerConnection.removeTrack(sender);
-      this._localMediaStream.removeTrack(mediaTrackSender.track);
+      if (this._localMediaStream) {
+        this._localMediaStream.removeTrack(mediaTrackSender.track);
+      }
       mediaTrackSender.removeSender(sender);
       this._rtpSenders.delete(mediaTrackSender);
     }
@@ -23901,8 +25063,71 @@ function isSenderOfKind(kind, sender) {
  * @property {Array<VideoCodec>} video
  */
 
+function filterOutMediaStreamIds(sdp) {
+  return sdp.replace(/a=msid:[^ ]+ /g, 'a=msid:- ');
+}
+
+/**
+ * @param {string} sdp
+ * @param {string} mid
+ * @returns {?string} direction
+ */
+function getTransceiverDirection(sdp, mid) {
+  var section = getMediaSections(sdp).find(function (section) {
+    return section.match('a=mid:' + mid);
+  });
+  if (!section) {
+    return null;
+  }
+  var match = section.match(/a=(sendrecv|sendonly|recvonly|inactive)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * @param {string} sdp
+ * @returns {Array<string>} mids
+ */
+function getMids(sdp) {
+  return sdp.match(/\r\na=mid:.+$/mg).map(function (match) {
+    return match.split(':')[1];
+  }).filter(function (mid) {
+    return mid;
+  });
+}
+
+/**
+ * @param {string} sdp
+ * @param {RTCRtpTransceiver} transceiver
+ * @returns {boolean} shouldStop
+ */
+function shouldStopTransceiver(sdp, transceiver) {
+  if (!transceiver.stop || transceiver.stopped || !transceiver.mid) {
+    return false;
+  }
+
+  // NOTE(mroberts): We don't want to stop the initial two audio and video
+  // RTCRtpTransceivers that everyone negotiates with.
+  var mids = getMids(sdp);
+  if (transceiver.mid === mids[0] || transceiver.mid === mids[1]) {
+    return false;
+  }
+
+  if (transceiver.currentDirection === 'inactive') {
+    return true;
+  }
+
+  var direction = getTransceiverDirection(sdp, transceiver.mid);
+  if (direction === 'inactive') {
+    return true;
+  } else if (direction === 'recvonly' && !transceiver.sender.track) {
+    return true;
+  }
+
+  return false;
+}
+
 module.exports = PeerConnectionV2;
-},{"../../data/receiver":60,"../../media/track/receiver":83,"../../statemachine":123,"../../util":136,"../../util/constants":134,"../../util/log":139,"../../util/sdp":140,"../../util/sdp/issue8329":141,"../../util/sdp/trackmatcher/identity":143,"../../util/sdp/trackmatcher/mid":144,"../../util/sdp/trackmatcher/ordered":145,"../../util/twilio-video-errors":148,"./icebox":110,"@twilio/webrtc":37}],115:[function(require,module,exports){
+},{"../../data/receiver":60,"../../media/track/receiver":84,"../../statemachine":127,"../../util":153,"../../util/constants":151,"../../util/log":156,"../../util/sdp":157,"../../util/sdp/issue8329":158,"../../util/sdp/trackmatcher/identity":160,"../../util/sdp/trackmatcher/mid":161,"../../util/sdp/trackmatcher/ordered":162,"../../util/twilio-video-errors":165,"./icebox":112,"@twilio/webrtc":37}],119:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -24053,6 +25278,7 @@ var PeerConnectionManager = function (_QueueingEventEmitter) {
         var _PeerConnectionV = this._PeerConnectionV2;
 
         var options = Object.assign({
+          dummyAudioMediaStreamTrack: this._dummyAudioTrackSender ? this._dummyAudioTrackSender.track : null,
           offerOptions: this._offerOptions
         }, configuration);
         peerConnection = new _PeerConnectionV(id, this._encodingParameters, this._preferredCodecs, options);
@@ -24195,13 +25421,10 @@ var PeerConnectionManager = function (_QueueingEventEmitter) {
       var dataTrackSenders = new Set(trackSenders.filter(function (trackSender) {
         return trackSender.kind === 'data';
       }));
-      var mediaTrackSenders = new Set(trackSenders.filter(function (trackSender) {
-        return trackSender.kind === 'audio' || trackSender.kind === 'video';
-      }));
 
-      if (this._dummyAudioTrackSender) {
-        mediaTrackSenders.add(this._dummyAudioTrackSender);
-      }
+      var mediaTrackSenders = new Set(trackSenders.filter(function (trackSender) {
+        return trackSender && (trackSender.kind === 'audio' || trackSender.kind === 'video');
+      }));
 
       var changes = getTrackSenderChanges(this, dataTrackSenders, mediaTrackSenders);
       this._dataTrackSenders = dataTrackSenders;
@@ -24436,7 +25659,7 @@ function updateIceConnectionState(pcm) {
 }
 
 module.exports = PeerConnectionManager;
-},{"../../media/track/sender":92,"../../queueingeventemitter":97,"../../util":136,"../../webaudio/audiocontext":150,"./peerconnection":114}],116:[function(require,module,exports){
+},{"../../media/track/sender":93,"../../queueingeventemitter":98,"../../util":153,"../../webaudio/audiocontext":167,"./peerconnection":118}],120:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -24504,7 +25727,7 @@ var RecordingV2 = function (_RecordingSignaling) {
  */
 
 module.exports = RecordingV2;
-},{"../recording":104}],117:[function(require,module,exports){
+},{"../recording":105}],121:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -24638,7 +25861,7 @@ var RemoteParticipantV2 = function (_RemoteParticipantSig) {
 }(RemoteParticipantSignaling);
 
 module.exports = RemoteParticipantV2;
-},{"../remoteparticipant":105,"./remotetrackpublication":118}],118:[function(require,module,exports){
+},{"../remoteparticipant":106,"./remotetrackpublication":122}],122:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -24696,7 +25919,7 @@ var RemoteTrackPublicationV2 = function (_RemoteTrackPublicati) {
  */
 
 module.exports = RemoteTrackPublicationV2;
-},{"../remotetrackpublication":106}],119:[function(require,module,exports){
+},{"../remotetrackpublication":107}],123:[function(require,module,exports){
 'use strict';
 
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
@@ -24711,6 +25934,9 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
+var DominantSpeakerSignaling = require('./dominantspeakersignaling');
+var NetworkQualityMonitor = require('./networkqualitymonitor');
+var NetworkQualitySignaling = require('./networkqualitysignaling');
 var RecordingV2 = require('./recording');
 var RoomSignaling = require('../room');
 var RemoteParticipantV2 = require('./remoteparticipant');
@@ -24731,6 +25957,8 @@ var RoomV2 = function (_RoomSignaling) {
     _classCallCheck(this, RoomV2);
 
     options = Object.assign({
+      NetworkQualityMonitor: NetworkQualityMonitor,
+      NetworkQualitySignaling: NetworkQualitySignaling,
       RecordingSignaling: RecordingV2,
       RemoteParticipantV2: RemoteParticipantV2,
       statsPublishIntervalMs: STATS_PUBLISH_INTERVAL_MS
@@ -24739,8 +25967,30 @@ var RoomV2 = function (_RoomSignaling) {
     var _this = _possibleConstructorReturn(this, (RoomV2.__proto__ || Object.getPrototypeOf(RoomV2)).call(this, localParticipant, initialState.sid, initialState.name, options));
 
     Object.defineProperties(_this, {
+      _dominantSpeakerSignaling: {
+        value: null,
+        writable: true
+      },
+      _dominantSpeakerSignalingPromise: {
+        value: null,
+        writable: true
+      },
       _disconnectedParticipantSids: {
         value: new Set()
+      },
+      _NetworkQualityMonitor: {
+        value: options.NetworkQualityMonitor
+      },
+      _NetworkQualitySignaling: {
+        value: options.NetworkQualitySignaling
+      },
+      _networkQualityMonitor: {
+        value: null,
+        writable: true
+      },
+      _networkQualityMonitorPromise: {
+        value: null,
+        writable: true
       },
       _peerConnectionManager: {
         value: peerConnectionManager
@@ -24849,6 +26099,8 @@ var RoomV2 = function (_RoomSignaling) {
     value: function _disconnect(error) {
       var didDisconnect = _get(RoomV2.prototype.__proto__ || Object.getPrototypeOf(RoomV2.prototype), '_disconnect', this).call(this, error);
       if (didDisconnect) {
+        this._teardownDominantSpeakerSignaling();
+        this._teardownNetworkQualityMonitor();
         this._transport.disconnect();
         this._peerConnectionManager.close();
       }
@@ -24941,6 +26193,8 @@ var RoomV2 = function (_RoomSignaling) {
   }, {
     key: '_update',
     value: function _update(roomState) {
+      var _this3 = this;
+
       var participantsToKeep = new Set();
 
       if (roomState.subscribed && roomState.subscribed.revision > this._subscribedRevision) {
@@ -24953,6 +26207,18 @@ var RoomV2 = function (_RoomSignaling) {
             this._subscriptionFailures.set(trackState.sid, trackState.error);
           }
         }, this);
+
+        var subscribedTrackIds = new Set(roomState.subscribed.tracks.filter(function (trackState) {
+          return !!trackState.id;
+        }).map(function (trackState) {
+          return trackState.id;
+        }));
+
+        this._subscribed.forEach(function (trackSid, trackId) {
+          if (!subscribedTrackIds.has(trackId)) {
+            _this3._subscribed.delete(trackId);
+          }
+        });
       }
 
       // TODO(mroberts): Remove me once the Server is fixed.
@@ -24965,7 +26231,7 @@ var RoomV2 = function (_RoomSignaling) {
         participantsToKeep.add(participant);
       }, this);
 
-      handleSubscriptionFailures(this);
+      handleSubscriptions(this);
 
       // TODO(mroberts): Remove me once the Server is fixed.
       /* eslint camelcase:0 */
@@ -24991,7 +26257,110 @@ var RoomV2 = function (_RoomSignaling) {
         this.localParticipant.connect(roomState.participant.sid, roomState.participant.identity);
       }
 
+      if (!this._dominantSpeakerSignalingPromise && roomState.media_signaling && roomState.media_signaling.active_speaker && roomState.media_signaling.active_speaker.transport && roomState.media_signaling.active_speaker.transport.type === 'data-channel') {
+        this._setupDataTransportBackedDominantSpeakerSignaling(roomState.media_signaling.active_speaker.transport.label);
+      }
+
+      if (!this._networkQualityMonitorPromise && roomState.media_signaling && roomState.media_signaling.network_quality && roomState.media_signaling.network_quality.transport && roomState.media_signaling.network_quality.transport.type === 'data-channel') {
+        this._setupDataTransportBackedNetworkQualityMonitor(roomState.media_signaling.network_quality.transport.label);
+      }
+
       return this;
+    }
+
+    /**
+     * Create a {@link DataTransport}-backed {@link DominantSpeakerSignaling}.
+     * @private
+     * @param {ID} id - ID of the {@link DataTrackReceiver} that will ultimately
+     *   be converted into a {@link DataTrackTransport} for use with
+     *   {@link DominantSpeakerSignaling}
+     * @returns {Promise<void>}
+     */
+
+  }, {
+    key: '_setupDataTransportBackedDominantSpeakerSignaling',
+    value: function _setupDataTransportBackedDominantSpeakerSignaling(id) {
+      var _this4 = this;
+
+      this._teardownDominantSpeakerSignaling();
+      var dominantSpeakerSignalingPromise = this._getTrackReceiver(id).then(function (receiver) {
+        if (receiver.kind !== 'data') {
+          throw new Error('Expected a DataTrackReceiver');
+        }if (_this4._dominantSpeakerSignalingPromise !== dominantSpeakerSignalingPromise) {
+          // NOTE(mroberts): _teardownDominantSpeakerSignaling was called.
+          return;
+        }
+        var dominantSpeakerSignaling = new DominantSpeakerSignaling(receiver.toDataTransport());
+        _this4._setDominantSpeakerSignaling(dominantSpeakerSignaling);
+      });
+      this._dominantSpeakerSignalingPromise = dominantSpeakerSignalingPromise;
+    }
+    /**
+     * Create a {@link DataTransport}-backed {@link NetworkQualityMonitor}.
+     * @private
+     * @param {ID} id - ID of the {@link DataTrackReceiver} that will ultimately
+     *   be converted into a {@link DataTrackTransport} for use with
+     *   {@link NetworkQualitySignaling}
+     * @returns {Promise<void>}
+     */
+
+  }, {
+    key: '_setupDataTransportBackedNetworkQualityMonitor',
+    value: function _setupDataTransportBackedNetworkQualityMonitor(id) {
+      var _this5 = this;
+
+      this._teardownNetworkQualityMonitor();
+      var networkQualityMonitorPromise = this._getTrackReceiver(id).then(function (receiver) {
+        if (receiver.kind !== 'data') {
+          throw new Error('Expected a DataTrackReceiver');
+        }if (_this5._networkQualityMonitorPromise !== networkQualityMonitorPromise) {
+          // NOTE(mroberts): _teardownNetworkQualityMonitor was called.
+          return;
+        }
+        var networkQualitySignaling = new _this5._NetworkQualitySignaling(receiver.toDataTransport());
+        var networkQualityMonitor = new _this5._NetworkQualityMonitor(_this5._peerConnectionManager, networkQualitySignaling);
+        _this5._setNetworkQualityMonitor(networkQualityMonitor);
+      });
+      this._networkQualityMonitorPromise = networkQualityMonitorPromise;
+    }
+  }, {
+    key: '_setDominantSpeakerSignaling',
+    value: function _setDominantSpeakerSignaling(dominantSpeakerSignaling) {
+      var _this6 = this;
+
+      this._dominantSpeakerSignaling = dominantSpeakerSignaling;
+      dominantSpeakerSignaling.on('updated', function () {
+        return _this6.setDominantSpeaker(dominantSpeakerSignaling.loudestParticipantSid);
+      });
+    }
+  }, {
+    key: '_setNetworkQualityMonitor',
+    value: function _setNetworkQualityMonitor(networkQualityMonitor) {
+      var _this7 = this;
+
+      this._networkQualityMonitor = networkQualityMonitor;
+      networkQualityMonitor.on('updated', function () {
+        if (_this7.mediaConnectionState === 'failed') {
+          return;
+        }
+        _this7.localParticipant.setNetworkQualityLevel(networkQualityMonitor.level, networkQualityMonitor.levels);
+      });
+      networkQualityMonitor.start();
+    }
+  }, {
+    key: '_teardownDominantSpeakerSignaling',
+    value: function _teardownDominantSpeakerSignaling() {
+      this._dominantSpeakerSignalingPromise = null;
+      this._dominantSpeakerSignaling = null;
+    }
+  }, {
+    key: '_teardownNetworkQualityMonitor',
+    value: function _teardownNetworkQualityMonitor() {
+      this._networkQualityMonitorPromise = null;
+      if (this._networkQualityMonitor) {
+        this._networkQualityMonitor.stop();
+        this._networkQualityMonitor = null;
+      }
     }
 
     /**
@@ -25002,7 +26371,7 @@ var RoomV2 = function (_RoomSignaling) {
   }, {
     key: 'getStats',
     value: function getStats() {
-      var _this3 = this;
+      var _this8 = this;
 
       return this._peerConnectionManager.getStats().then(function (responses) {
         return new Map(Array.from(responses).map(function (_ref) {
@@ -25011,10 +26380,10 @@ var RoomV2 = function (_RoomSignaling) {
               response = _ref2[1];
 
           return [id, Object.assign({}, response, {
-            localAudioTrackStats: filterAndAddLocalTrackSids(_this3, response.localAudioTrackStats),
-            localVideoTrackStats: filterAndAddLocalTrackSids(_this3, response.localVideoTrackStats),
-            remoteAudioTrackStats: filterAndAddRemoteTrackSids(_this3, response.remoteAudioTrackStats),
-            remoteVideoTrackStats: filterAndAddRemoteTrackSids(_this3, response.remoteVideoTrackStats)
+            localAudioTrackStats: filterAndAddLocalTrackSids(_this8, response.localAudioTrackStats),
+            localVideoTrackStats: filterAndAddLocalTrackSids(_this8, response.localVideoTrackStats),
+            remoteAudioTrackStats: filterAndAddRemoteTrackSids(_this8, response.remoteAudioTrackStats),
+            remoteVideoTrackStats: filterAndAddRemoteTrackSids(_this8, response.remoteVideoTrackStats)
           })];
         }));
       });
@@ -25131,7 +26500,10 @@ function handlePeerConnectionEvents(roomV2, peerConnectionManager) {
   peerConnectionManager.getTrackReceivers().forEach(roomV2._addTrackReceiver, roomV2);
 
   peerConnectionManager.on('iceConnectionStateChanged', function () {
-    return roomV2.emit('mediaConnectionStateChanged');
+    roomV2.emit('mediaConnectionStateChanged');
+    if (roomV2.mediaConnectionState === 'failed' && roomV2.localParticipant.networkQualityLevel !== null) {
+      roomV2.localParticipant.setNetworkQualityLevel(0);
+    }
   });
 }
 
@@ -25195,7 +26567,7 @@ function periodicallyPublishStats(roomV2, localParticipant, transport, intervalM
   });
 }
 
-function handleSubscriptionFailures(room) {
+function handleSubscriptions(room) {
   var remoteTracks = new Map(util.flatMap(room.participants, function (participant) {
     return Array.from(participant.tracks.values()).map(function (track) {
       return [track.sid, track];
@@ -25207,6 +26579,19 @@ function handleSubscriptionFailures(room) {
     if (remoteTrack) {
       room._subscriptionFailures.delete(trackSid);
       remoteTrack.subscribeFailed(createTwilioError(error.code, error.message));
+    }
+  });
+
+  var subscribedTrackIds = new Set(Array.from(room._subscribed.keys()));
+  remoteTracks.forEach(function (remoteTrack) {
+    if (!subscribedTrackIds.has(remoteTrack.id)) {
+      remoteTrack.setTrackTransceiver(null);
+      return;
+    }
+    if (!remoteTrack.isSubscribed) {
+      room._getTrackReceiver(remoteTrack.id).then(function (trackReceiver) {
+        return remoteTrack.setTrackTransceiver(trackReceiver);
+      });
     }
   });
 }
@@ -25261,7 +26646,7 @@ function replaceNullsWithDefaults(activeIceCandidatePair, peerConnectionId) {
 }
 
 module.exports = RoomV2;
-},{"../../stats/statsreport":130,"../../util":136,"../../util/twilio-video-errors":148,"../room":107,"./recording":116,"./remoteparticipant":117}],120:[function(require,module,exports){
+},{"../../stats/statsreport":145,"../../util":153,"../../util/twilio-video-errors":165,"../room":108,"./dominantspeakersignaling":111,"./networkqualitymonitor":116,"./networkqualitysignaling":117,"./recording":120,"./remoteparticipant":121}],124:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -25388,7 +26773,7 @@ function getRoomState(message) {
 }
 
 module.exports = SIPJSMediaHandler;
-},{"../../sip":122}],121:[function(require,module,exports){
+},{"../../sip":126}],125:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -25409,11 +26794,14 @@ var StateMachine = require('../../statemachine');
 var util = require('../../util');
 
 var _require = require('../../util/twilio-video-errors'),
-    SignalingConnectionDisconnectedError = _require.SignalingConnectionDisconnectedError,
-    SignalingConnectionError = _require.SignalingConnectionError,
-    SignalingConnectionTimeoutError = _require.SignalingConnectionTimeoutError,
-    SignalingIncomingMessageInvalidError = _require.SignalingIncomingMessageInvalidError,
-    createTwilioError = _require.createTwilioError;
+    RoomCompletedError = _require.RoomCompletedError;
+
+var _require2 = require('../../util/twilio-video-errors'),
+    SignalingConnectionDisconnectedError = _require2.SignalingConnectionDisconnectedError,
+    SignalingConnectionError = _require2.SignalingConnectionError,
+    SignalingConnectionTimeoutError = _require2.SignalingConnectionTimeoutError,
+    SignalingIncomingMessageInvalidError = _require2.SignalingIncomingMessageInvalidError,
+    createTwilioError = _require2.createTwilioError;
 
 var SDK_NAME = packageInfo.name + '.js';
 var SDK_VERSION = packageInfo.version;
@@ -25454,6 +26842,7 @@ var states = {
  * A {@link Transport} supports sending and receiving Room Signaling Protocol
  * (RSP) messages. It also supports RSP requests, such as Sync and Disconnect.
  * @extends StateMachine
+ * @implements MediaSignalingTransport
  * @emits Transport#connected
  * @emits Transport#message
  */
@@ -25476,6 +26865,7 @@ var Transport = function (_StateMachine) {
     options = Object.assign({
       InsightsPublisher: InsightsPublisher,
       NullInsightsPublisher: NullInsightsPublisher,
+      sdpSemantics: null,
       SIPJSMediaHandler: DefaultSIPJSMediaHandler,
       userAgent: util.getUserAgent()
     }, options);
@@ -25487,14 +26877,13 @@ var Transport = function (_StateMachine) {
       eventPublisherOptions.gateway = options.wsServerInsights;
     }
 
-    var session = createSession(_this, name, accessToken, localParticipant, peerConnectionManager, ua, options.SIPJSMediaHandler);
     var EventPublisher = options.insights ? options.InsightsPublisher : options.NullInsightsPublisher;
     Object.defineProperties(_this, {
       _eventPublisher: {
         value: new EventPublisher(accessToken, SDK_NAME, SDK_VERSION, options.environment, options.realm, eventPublisherOptions)
       },
-      _session: {
-        value: session
+      _sdpSemantics: {
+        value: options.sdpSemantics
       },
       _updatesReceived: {
         value: []
@@ -25506,7 +26895,13 @@ var Transport = function (_StateMachine) {
         value: options.userAgent
       }
     });
-    setupEventListeners(_this, session, ua);
+
+    Object.defineProperties(_this, {
+      _session: {
+        value: createSession(_this, name, accessToken, localParticipant, peerConnectionManager, ua, options.SIPJSMediaHandler, options.iceServerSourceStatus, options.dominantSpeaker, options.networkQuality)
+      }
+    });
+    setupEventListeners(_this, _this._session, ua);
     return _this;
   }
 
@@ -25609,7 +27004,7 @@ var Transport = function (_StateMachine) {
  * @param {object} state
  */
 
-function createSession(transport, name, accessToken, localParticipant, peerConnectionManager, ua, SIPJSMediaHandler) {
+function createSession(transport, name, accessToken, localParticipant, peerConnectionManager, ua, SIPJSMediaHandler, iceServerSourceStatus, dominantSpeaker, networkQuality) {
   var target = 'sip:' + util.makeServerSIPURI();
   return ua.invite(target, {
     extraHeaders: [constants.headers.X_TWILIO_ACCESSTOKEN + ': ' + accessToken, 'Session-Expires: 120'],
@@ -25635,14 +27030,26 @@ function createSession(transport, name, accessToken, localParticipant, peerConne
         };
 
         if (message.type === 'connect') {
+          message.ice_servers = iceServerSourceStatus;
           message.publisher = {
             name: SDK_NAME,
             sdk_version: SDK_VERSION,
             user_agent: transport._userAgent
           };
+          message.media_signaling = {};
+          if (networkQuality) {
+            message.media_signaling.network_quality = {
+              transports: [{ type: 'data-channel' }]
+            };
+          }
+          if (dominantSpeaker) {
+            message.media_signaling.active_speaker = {
+              transports: [{ type: 'data-channel' }]
+            };
+          }
         }
 
-        var sdpFormat = util.getSdpFormat();
+        var sdpFormat = util.getSdpFormat(transport._sdpSemantics);
         if (type === 'connect' && sdpFormat) {
           message.format = sdpFormat;
         }
@@ -25788,7 +27195,20 @@ function parseRequestOrResponseBody(requestOrResponse) {
 function getTwilioErrorFromRequestOrResponseBody(requestOrResponse) {
   try {
     var message = parseRequestOrResponseBody(requestOrResponse);
-    return message && message.type === 'error' ? createTwilioError(message.code, message.message) : null;
+    if (message) {
+      switch (message.type) {
+        case 'disconnected':
+          if (message.status === 'completed') {
+            return new RoomCompletedError();
+          }
+          break;
+        case 'error':
+          return createTwilioError(message.code, message.message);
+        default:
+          break;
+      }
+    }
+    return null;
   } catch (error) {
     return error;
   }
@@ -25826,6 +27246,7 @@ function setupEventListeners(transport, session, ua) {
     if (requestOrResponse && !(requestOrResponse instanceof SIP.OutgoingRequest)) {
       twilioError = getTwilioErrorFromRequestOrResponse(requestOrResponse);
     }
+
     if (!twilioError) {
       switch (cause) {
         case SIP.C.causes.REQUEST_TIMEOUT:
@@ -25888,7 +27309,7 @@ function setupEventListeners(transport, session, ua) {
             transport.emit('message', message);
             return;
           case 'disconnected':
-            transport.preempt('disconnected');
+            transport.disconnect(message.status === 'completed' ? new RoomCompletedError() : null);
             return;
           default:
             // Do nothing.
@@ -25905,7 +27326,7 @@ function setupEventListeners(transport, session, ua) {
             transport._updatesReceived.push(message);
             return;
           case 'disconnected':
-            transport.preempt('disconnected');
+            transport.disconnect(message.status === 'completed' ? new RoomCompletedError() : null);
             return;
           default:
             // Do nothing.
@@ -25925,7 +27346,7 @@ function setupEventListeners(transport, session, ua) {
             transport.preempt('connected');
             return;
           case 'disconnected':
-            transport.preempt('disconnected');
+            transport.disconnect(message.status === 'completed' ? new RoomCompletedError() : null);
             return;
           default:
             // Do nothing.
@@ -25983,7 +27404,7 @@ function setupEventListeners(transport, session, ua) {
 }
 
 module.exports = Transport;
-},{"../../../package.json":151,"../../sip":122,"../../statemachine":123,"../../util":136,"../../util/constants":134,"../../util/insightspublisher":137,"../../util/insightspublisher/null":138,"../../util/twilio-video-errors":148,"./sipjsmediahandler":120}],122:[function(require,module,exports){
+},{"../../../package.json":170,"../../sip":126,"../../statemachine":127,"../../util":153,"../../util/constants":151,"../../util/insightspublisher":154,"../../util/insightspublisher/null":155,"../../util/twilio-video-errors":165,"./sipjsmediahandler":124}],126:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -26001,7 +27422,7 @@ module.exports = require('@twilio/sip.js/src/SIP')({
   Transport: Transport
 });
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"@twilio/sip.js/src/SIP":19,"@twilio/sip.js/src/Transport":28,"ws":152}],123:[function(require,module,exports){
+},{"@twilio/sip.js/src/SIP":19,"@twilio/sip.js/src/Transport":28,"ws":171}],127:[function(require,module,exports){
 'use strict';
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -26503,7 +27924,156 @@ function createUnreachableError(here, there) {
 }
 
 module.exports = StateMachine;
-},{"./util":136,"events":156}],124:[function(require,module,exports){
+},{"./util":153,"events":175}],128:[function(require,module,exports){
+/* eslint no-undefined:0 */
+'use strict';
+
+/**
+ * @param {Array<number|undefined>} xs
+ * @returns {number|undefined}
+ */
+
+function average(xs) {
+  xs = xs.filter(function (x) {
+    return typeof x === 'number';
+  });
+  return xs.length < 1 ? undefined : xs.reduce(function (y, x) {
+    return x + y;
+  }) / xs.length;
+}
+
+module.exports = average;
+},{}],129:[function(require,module,exports){
+'use strict';
+
+/**
+ * @property {number} [availableSend] - bps (undefined in Firefox)
+ * @property {number} recv - bps
+ * @property {number} [rtt] - s (undefined in Firefox)
+ * @property {number} send - bps
+ */
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var IceReport = function () {
+  /**
+   * Construct an {@link IceReport}.
+   * @param {number} send - bps
+   * @param {number} recv - bps
+   * @param {number} [rtt] - s
+   * @param {number} [availableSend] - bps
+   */
+  function IceReport(send, recv, availableSend, rtt) {
+    _classCallCheck(this, IceReport);
+
+    Object.defineProperties(this, {
+      availableSend: {
+        enumerable: true,
+        value: availableSend
+      },
+      recv: {
+        enumerable: true,
+        value: recv
+      },
+      rtt: {
+        enumerable: true,
+        value: rtt
+      },
+      send: {
+        enumerable: true,
+        value: send
+      }
+    });
+  }
+
+  /**
+   * @param {RTCStats} olderStats
+   * @param {RTCStats} newerStats
+   * @returns {IceReport}
+   */
+
+
+  _createClass(IceReport, null, [{
+    key: 'of',
+    value: function of(olderStats, newerStats) {
+      var secondsElapsed = (newerStats.timestamp - olderStats.timestamp) / 1000;
+      var deltaBytesSent = newerStats.bytesSent - olderStats.bytesSent;
+      var deltaBytesReceived = newerStats.bytesReceived - olderStats.bytesReceived;
+      var send = secondsElapsed > 0 ? deltaBytesSent / secondsElapsed * 8 : 0;
+      var recv = secondsElapsed > 0 ? deltaBytesReceived / secondsElapsed * 8 : 0;
+      var availableSend = newerStats.availableOutgoingBitrate,
+          rtt = newerStats.currentRoundTripTime;
+
+      return new IceReport(send, recv, availableSend, rtt);
+    }
+  }]);
+
+  return IceReport;
+}();
+
+module.exports = IceReport;
+},{}],130:[function(require,module,exports){
+'use strict';
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var IceReport = require('./icereport');
+
+/**
+ * @property {IceReport} lastReport
+ * @property {?RTCStats} lastStats
+ */
+
+var IceReportFactory = function () {
+  /**
+   * Construct an {@link IceReportFactory}.
+   */
+  function IceReportFactory() {
+    _classCallCheck(this, IceReportFactory);
+
+    Object.defineProperties(this, {
+      lastReport: {
+        enumerable: true,
+        value: new IceReport(0, 0),
+        writable: true
+      },
+      lastStats: {
+        enumerable: true,
+        value: null,
+        writable: true
+      }
+    });
+  }
+
+  /**
+   * Create an {@link IceReport}.
+   * @param {RTCStats} newerStats;
+   * @returns {IceReport}
+   */
+
+
+  _createClass(IceReportFactory, [{
+    key: 'next',
+    value: function next(newerStats) {
+      var olderStats = this.lastStats;
+      this.lastStats = newerStats;
+      if (olderStats) {
+        var report = olderStats.id === newerStats.id ? IceReport.of(olderStats, newerStats) : new IceReport(0, 0);
+        this.lastReport = report;
+      }
+      return this.lastReport;
+    }
+  }]);
+
+  return IceReportFactory;
+}();
+
+module.exports = IceReportFactory;
+},{"./icereport":129}],131:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -26556,7 +28126,7 @@ var LocalAudioTrackStats = function (_LocalTrackStats) {
  */
 
 module.exports = LocalAudioTrackStats;
-},{"./localtrackstats":125}],125:[function(require,module,exports){
+},{"./localtrackstats":132}],132:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -26608,7 +28178,7 @@ var LocalTrackStats = function (_TrackStats) {
 }(TrackStats);
 
 module.exports = LocalTrackStats;
-},{"./trackstats":131}],126:[function(require,module,exports){
+},{"./trackstats":147}],133:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -26697,7 +28267,848 @@ var LocalVideoTrackStats = function (_LocalTrackStats) {
 }(LocalTrackStats);
 
 module.exports = LocalVideoTrackStats;
-},{"./localtrackstats":125}],127:[function(require,module,exports){
+},{"./localtrackstats":132}],134:[function(require,module,exports){
+'use strict';
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var ReceiverReport = require('./receiverreport');
+var SenderReport = require('./senderreport');
+
+/**
+ * @interface SenderAndReceiverReports
+ * @property {Array<SenderReport>} send
+ * @property {Array<ReceiverReport>} recv
+ */
+
+/**
+ * @interface SenderAndReceiverSummary
+ * @property {SenderSummary} send
+ * @property {ReceiverSummary} recv
+ */
+
+/**
+ * @interface PeerConnectionSummary
+ * @property {IceReport} ice
+ * @property {SenderSummary} send
+ * @property {ReceiverSummary} recv
+ * @property {SenderAndReceiverSummary} audio
+ * @property {SenderAndReceiverSummary} video
+ */
+
+/**
+ * @property {IceReport} ice
+ * @roperty {SenderAndReceiverReports} audio
+ * @roperty {SenderAndReceiverReports} video
+ */
+
+var PeerConnectionReport = function () {
+  /**
+   * Construct a {@link PeerConnectionReport}.
+   * @param {IceReport} ice
+   * @param {SenderAndReceiverReports} audio
+   * @param {SenderAndReceiverReports} video
+   */
+  function PeerConnectionReport(ice, audio, video) {
+    _classCallCheck(this, PeerConnectionReport);
+
+    Object.defineProperties(this, {
+      ice: {
+        enumerable: true,
+        value: ice
+      },
+      audio: {
+        enumerable: true,
+        value: audio
+      },
+      video: {
+        enumerable: true,
+        value: video
+      }
+    });
+  }
+
+  /**
+   * Summarize the {@link PeerConnectionReport} by summarizing its
+   * {@link SenderReport}s and {@link ReceiverReport}s.
+   * @returns {PeerConnectionSummary}
+   */
+
+
+  _createClass(PeerConnectionReport, [{
+    key: 'summarize',
+    value: function summarize() {
+      var senderReports = this.audio.send.concat(this.video.send);
+      var send = SenderReport.summarize(senderReports);
+
+      var receiverReports = this.audio.recv.concat(this.video.recv);
+      var recv = ReceiverReport.summarize(receiverReports);
+
+      return {
+        ice: this.ice,
+        send: send,
+        recv: recv,
+        audio: {
+          send: SenderReport.summarize(this.audio.send),
+          recv: ReceiverReport.summarize(this.audio.recv)
+        },
+        video: {
+          send: SenderReport.summarize(this.video.send),
+          recv: ReceiverReport.summarize(this.video.recv)
+        }
+      };
+    }
+  }]);
+
+  return PeerConnectionReport;
+}();
+
+module.exports = PeerConnectionReport;
+},{"./receiverreport":136,"./senderreport":143}],135:[function(require,module,exports){
+'use strict';
+
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var IceReportFactory = require('./icereportfactory');
+var PeerConnectionReport = require('./peerconnectionreport');
+var ReceiverReportFactory = require('./receiverreportfactory');
+var SenderReportFactory = require('./senderreportfactory');
+
+/**
+ * @typedef {string} TrackId
+ */
+
+/**
+ * @typedef {string} StatsId
+ */
+
+/**
+ * @interface SenderReportFactoriesByMediaType
+ * @property {Map<StatsId, SenderReportFactory>} audio
+ * @property {Map<StatsId, SenderReportFactory>} video
+ */
+
+/**
+ * @interface ReceiverReportFactoriesByMediaType
+ * @property {Map<StatsId, ReceiverReportFactory>} audio
+ * @property {Map<StatsId, ReceiverReportFactory>} video
+ */
+
+/**
+ * @interface SenderAndReceiverReportFactories
+ * @property {Map<StatsId, SenderReportFactories>} send
+ * @property {Map<StatsId, ReceiverReportFactories>} recv
+ */
+
+/**
+ * @interface {StatsIdsByMediaType}
+ * @property {Set<StatsId>} audio
+ * @property {Set<StatsId>} video
+ */
+
+/**
+ * @property {RTCPeerConnection} pc
+ * @property {IceReportFactory} iceReportFactory
+ * @property {SenderAndReceiverReportFactories} audio
+ * @property {SenderAndReceiverReportFactories} video
+ * @property {?PeerConnectionReport} lastReport
+ */
+
+var PeerConnectionReportFactory = function () {
+  /**
+   * Construct a {@link PeerConnectionReportFactory}.
+   * @param {RTCPeerConnection} pc
+   */
+  function PeerConnectionReportFactory(pc) {
+    _classCallCheck(this, PeerConnectionReportFactory);
+
+    Object.defineProperties(this, {
+      pc: {
+        enumerable: true,
+        value: pc
+      },
+      ice: {
+        enumerable: true,
+        value: new IceReportFactory()
+      },
+      audio: {
+        enumerable: true,
+        value: {
+          send: new Map(),
+          recv: new Map()
+        }
+      },
+      video: {
+        enumerable: true,
+        value: {
+          send: new Map(),
+          recv: new Map()
+        }
+      },
+      lastReport: {
+        enumerable: true,
+        value: null,
+        writable: true
+      }
+    });
+  }
+
+  /**
+   * Create a {@link PeerConnectionReport}.
+   * @returns {Promise<PeerConnectionReport>}
+   */
+
+
+  _createClass(PeerConnectionReportFactory, [{
+    key: 'next',
+    value: function next() {
+      var _this = this;
+
+      var updatePromise = typeof mozRTCPeerConnection !== 'undefined' ? updateFirefox(this) : updateChrome(this);
+
+      return updatePromise.then(function () {
+        var audioSenderReportFactories = [].concat(_toConsumableArray(_this.audio.send.values()));
+        var videoSenderReportFactories = [].concat(_toConsumableArray(_this.video.send.values()));
+        var audioReceiverReportFactories = [].concat(_toConsumableArray(_this.audio.recv.values()));
+        var videoReceiverReportFactories = [].concat(_toConsumableArray(_this.video.recv.values()));
+
+        var report = new PeerConnectionReport(_this.ice.lastReport, {
+          send: audioSenderReportFactories.map(function (factory) {
+            return factory.lastReport;
+          }).filter(function (report) {
+            return report;
+          }),
+          recv: audioReceiverReportFactories.map(function (factory) {
+            return factory.lastReport;
+          }).filter(function (report) {
+            return report;
+          })
+        }, {
+          send: videoSenderReportFactories.map(function (factory) {
+            return factory.lastReport;
+          }).filter(function (report) {
+            return report;
+          }),
+          recv: videoReceiverReportFactories.map(function (factory) {
+            return factory.lastReport;
+          }).filter(function (report) {
+            return report;
+          })
+        });
+
+        _this.lastReport = report;
+
+        return report;
+      });
+    }
+  }]);
+
+  return PeerConnectionReportFactory;
+}();
+
+/**
+ * Construct a Map from MediaStreamTrack Ids to RTCStatsReports.
+ * @param {Array<RTCRtpSender>|Array<RTCRtpReceiver>} sendersOrReceivers - each
+ *   RTCRtpSender should have a non-null track
+ * @returns {Promise<Map<TrackId, RTCStats>>}
+ */
+
+
+function getSenderOrReceiverReports(sendersOrReceivers) {
+  return Promise.all(sendersOrReceivers.map(function (senderOrReceiver) {
+    var trackId = senderOrReceiver.track.id;
+    return senderOrReceiver.getStats().then(function (report) {
+      // NOTE(mroberts): We have to rewrite Ids due to this bug:
+      //
+      //   https://bugzilla.mozilla.org/show_bug.cgi?id=1463430
+      //
+      var _iteratorNormalCompletion = true;
+      var _didIteratorError = false;
+      var _iteratorError = undefined;
+
+      try {
+        for (var _iterator = report.values()[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+          var stats = _step.value;
+
+          if (stats.type === 'inbound-rtp') {
+            stats.id = trackId + '-' + stats.id;
+          }
+        }
+      } catch (err) {
+        _didIteratorError = true;
+        _iteratorError = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion && _iterator.return) {
+            _iterator.return();
+          }
+        } finally {
+          if (_didIteratorError) {
+            throw _iteratorError;
+          }
+        }
+      }
+
+      return [trackId, report];
+    });
+  })).then(function (pairs) {
+    return new Map(pairs);
+  });
+}
+
+/**
+ * @param {SenderReportFactory.constructor} SenderReportFactory
+ * @param {SenderReportFactoriesByMediaType} sendersByMediaType
+ * @param {RTCStatsReport} report
+ * @param {RTCStats} stats
+ * @param {TrackId} [trackId]
+ * @returns {?SenderReportFactory}
+ */ /**
+    * @param {ReceiverReportFactory.constructor} ReceiverReportFactory
+    * @param {ReceiverReportFactoriesByMediaType} receiversByMediaType
+    * @param {RTCStatsReport} report
+    * @param {RTCStats} stats
+    * @param {TrackId} [trackId]
+    * @returns {?ReceiverReportFactory}
+    */
+function getOrCreateSenderOrReceiverReportFactory(SenderOrReceiverReportFactory, sendersOrReceiversByMediaType, report, stats, trackId) {
+  var sendersOrReceivers = sendersOrReceiversByMediaType[stats.mediaType];
+  if (!trackId) {
+    var trackStats = report.get(stats.trackId);
+    if (trackStats) {
+      trackId = trackStats.trackIdentifier;
+    }
+  }
+  if (sendersOrReceivers && trackId) {
+    if (sendersOrReceivers.has(stats.id)) {
+      return sendersOrReceivers.get(stats.id);
+    }
+    var senderOrReceiverFactory = new SenderOrReceiverReportFactory(trackId, stats);
+    sendersOrReceivers.set(stats.id, senderOrReceiverFactory);
+  }
+  return null;
+}
+
+/**
+ * @param {PeerConnectionReportFactory} factory
+ * @returns {SenderReportFactoriesByMediaType}
+ */
+function getSenderReportFactoriesByMediaType(factory) {
+  return { audio: factory.audio.send, video: factory.video.send };
+}
+
+/**
+ * @param {PeerConnectionReportFactory} factory
+ * @returns {ReceiverReportFactoriesByMediaType}
+ */
+function getReceiverReportFactoriesByMediaType(factory) {
+  return { audio: factory.audio.recv, video: factory.video.recv };
+}
+
+/**
+ * @param {PeerConnectionReportFactory} factory
+ * @param {RTCStatsReport} report
+ * @param {RTCStats} stats
+ * @param {TrackId} [trackId]
+ * @returns {?SenderReportFactory}
+ */
+function getOrCreateSenderReportFactory(factory, report, stats, trackId) {
+  return getOrCreateSenderOrReceiverReportFactory(SenderReportFactory, getSenderReportFactoriesByMediaType(factory), report, stats, trackId);
+}
+
+/**
+ * @param {PeerConnectionReportFactory} factory
+ * @param {RTCStatsReport} report
+ * @param {RTCStats} stats
+ * @param {TrackId} [trackId]
+ * @returns {?ReceiverReportFactory}
+ */
+function getOrCreateReceiverReportFactory(factory, report, stats, trackId) {
+  return getOrCreateSenderOrReceiverReportFactory(ReceiverReportFactory, getReceiverReportFactoriesByMediaType(factory), report, stats, trackId);
+}
+
+/**
+ * @param {PeerConnectionReportFactory} factory
+ * @retuns {StatsIdsByMediaType}
+ */
+function getSenderReportFactoryIdsByMediaType(factory) {
+  return {
+    audio: new Set(factory.audio.send.keys()),
+    video: new Set(factory.video.send.keys())
+  };
+}
+
+/**
+ * @param {PeerConnectionReportFactory} factory
+ * @retuns {StatsIdsByMediaType}
+ */
+function getReceiverReportFactoryIdsByMediaType(factory) {
+  return {
+    audio: new Set(factory.audio.recv.keys()),
+    video: new Set(factory.video.recv.keys())
+  };
+}
+
+/**
+ * @param {PeerConnectionReportFactory} factory
+ * @param {RTCStatsReport} report
+ * @param {StatsIdsByMediaType} senderReportFactoryIdsToDeleteByMediaType
+ * @param {TrackId} [trackId]
+ * @returns {void}
+ */
+function updateSenderReports(factory, report, senderReportFactoryIdsToDeleteByMediaType, trackId) {
+  var _iteratorNormalCompletion2 = true;
+  var _didIteratorError2 = false;
+  var _iteratorError2 = undefined;
+
+  try {
+    for (var _iterator2 = report.values()[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+      var stats = _step2.value;
+
+      if (stats.type === 'outbound-rtp' && !stats.isRemote) {
+        if (typeof mozRTCPeerConnection === 'undefined' && !stats.trackId) {
+          continue;
+        }
+        var senderReportFactoryIdsToDelete = senderReportFactoryIdsToDeleteByMediaType[stats.mediaType];
+        if (senderReportFactoryIdsToDelete) {
+          senderReportFactoryIdsToDelete.delete(stats.id);
+        }
+        var senderReportFactory = getOrCreateSenderReportFactory(factory, report, stats, trackId);
+        if (senderReportFactory) {
+          var remoteInboundStats = report.get(stats.remoteId);
+          senderReportFactory.next(trackId || senderReportFactory.trackId, stats, remoteInboundStats);
+        }
+      }
+    }
+  } catch (err) {
+    _didIteratorError2 = true;
+    _iteratorError2 = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion2 && _iterator2.return) {
+        _iterator2.return();
+      }
+    } finally {
+      if (_didIteratorError2) {
+        throw _iteratorError2;
+      }
+    }
+  }
+}
+
+/**
+ * @param {PeerConnectionReportFactory} factory
+ * @param {RTCStatsReport} report
+ * @param {StatsIdsByMediaType} receiverReportFactoryIdsToDeleteByMediaType
+ * @param {TrackId} [trackId]
+ * @returns {void}
+ */
+function updateReceiverReports(factory, report, receiverReportFactoryIdsToDeleteByMediaType, trackId) {
+  var _iteratorNormalCompletion3 = true;
+  var _didIteratorError3 = false;
+  var _iteratorError3 = undefined;
+
+  try {
+    for (var _iterator3 = report.values()[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+      var stats = _step3.value;
+
+      if (stats.type === 'inbound-rtp' && !stats.isRemote) {
+        var receiverReportFactoryIdsToDelete = receiverReportFactoryIdsToDeleteByMediaType[stats.mediaType];
+        if (receiverReportFactoryIdsToDelete) {
+          receiverReportFactoryIdsToDelete.delete(stats.id);
+        }
+        var receiverReportFactory = getOrCreateReceiverReportFactory(factory, report, stats, trackId);
+        if (receiverReportFactory) {
+          receiverReportFactory.next(trackId || receiverReportFactory.trackId, stats);
+        }
+      }
+    }
+  } catch (err) {
+    _didIteratorError3 = true;
+    _iteratorError3 = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion3 && _iterator3.return) {
+        _iterator3.return();
+      }
+    } finally {
+      if (_didIteratorError3) {
+        throw _iteratorError3;
+      }
+    }
+  }
+}
+
+/**
+ * @param {SenderReportFactoriesByMediaType|ReceiverReportFactoriesByMediaType} senderOrReceiverReportFactoriesByMediaType
+ * @param {StatsIdsByMediaType} senderOrReceiverReportFactoryIdsByMediaType
+ * @returns {void}
+ */
+function deleteSenderOrReceiverReportFactories(senderOrReceiverReportFactoriesByMediaType, senderOrReceiverReportFactoryIdsByMediaType) {
+  var _loop = function _loop(mediaType) {
+    var senderOrReceiverReportFactories = senderOrReceiverReportFactoriesByMediaType[mediaType];
+    var senderOrReceiverReportFactoryIds = senderOrReceiverReportFactoryIdsByMediaType[mediaType];
+    senderOrReceiverReportFactoryIds.forEach(function (senderOrReceiverReportFactoryId) {
+      return senderOrReceiverReportFactories.delete(senderOrReceiverReportFactoryId);
+    });
+  };
+
+  for (var mediaType in senderOrReceiverReportFactoryIdsByMediaType) {
+    _loop(mediaType);
+  }
+}
+
+/**
+ * @param {IceReportFactory} ice
+ * @param {RTCStatsReport} report
+ * @returns {void}
+ */
+function updateIceReport(ice, report) {
+  var selectedCandidatePair = void 0;
+  var _iteratorNormalCompletion4 = true;
+  var _didIteratorError4 = false;
+  var _iteratorError4 = undefined;
+
+  try {
+    for (var _iterator4 = report.values()[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+      var stats = _step4.value;
+
+      if (stats.type === 'transport') {
+        selectedCandidatePair = report.get(stats.selectedCandidatePairId);
+      }
+    }
+  } catch (err) {
+    _didIteratorError4 = true;
+    _iteratorError4 = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion4 && _iterator4.return) {
+        _iterator4.return();
+      }
+    } finally {
+      if (_didIteratorError4) {
+        throw _iteratorError4;
+      }
+    }
+  }
+
+  if (selectedCandidatePair) {
+    ice.next(selectedCandidatePair);
+    return;
+  }
+  var _iteratorNormalCompletion5 = true;
+  var _didIteratorError5 = false;
+  var _iteratorError5 = undefined;
+
+  try {
+    for (var _iterator5 = report.values()[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
+      var _stats = _step5.value;
+
+      if (_stats.type === 'candidate-pair' && _stats.nominated && ('selected' in _stats ? _stats.selected : true)) {
+        ice.next(_stats);
+      }
+    }
+  } catch (err) {
+    _didIteratorError5 = true;
+    _iteratorError5 = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion5 && _iterator5.return) {
+        _iterator5.return();
+      }
+    } finally {
+      if (_didIteratorError5) {
+        throw _iteratorError5;
+      }
+    }
+  }
+}
+
+/**
+ * @param {PeerConnectionReportFactory} factory
+ * @returns {PeerConnectionReport}
+ */
+function updateFirefox(factory) {
+  var senders = factory.pc.getTransceivers().filter(function (transceiver) {
+    return transceiver.currentDirection && transceiver.currentDirection.match(/send/) && transceiver.sender.track;
+  }).map(function (transceiver) {
+    return transceiver.sender;
+  });
+
+  var receivers = factory.pc.getTransceivers().filter(function (transceiver) {
+    return transceiver.currentDirection && transceiver.currentDirection.match(/recv/);
+  }).map(function (transceiver) {
+    return transceiver.receiver;
+  });
+
+  return Promise.all([getSenderOrReceiverReports(senders), getSenderOrReceiverReports(receivers), factory.pc.getStats()]).then(function (_ref) {
+    var _ref2 = _slicedToArray(_ref, 3),
+        senderReports = _ref2[0],
+        receiverReports = _ref2[1],
+        pcReport = _ref2[2];
+
+    var senderReportFactoriesByMediaType = getSenderReportFactoriesByMediaType(factory);
+    var senderReportFactoryIdsToDeleteByMediaType = getSenderReportFactoryIdsByMediaType(factory);
+    senderReports.forEach(function (report, trackId) {
+      return updateSenderReports(factory, report, senderReportFactoryIdsToDeleteByMediaType, trackId);
+    });
+    deleteSenderOrReceiverReportFactories(senderReportFactoriesByMediaType, senderReportFactoryIdsToDeleteByMediaType);
+
+    var receiverReportFactoriesByMediaType = getReceiverReportFactoriesByMediaType(factory);
+    var receiverReportFactoryIdsToDeleteByMediaType = getReceiverReportFactoryIdsByMediaType(factory);
+    receiverReports.forEach(function (report, trackId) {
+      return updateReceiverReports(factory, report, receiverReportFactoryIdsToDeleteByMediaType, trackId);
+    });
+    deleteSenderOrReceiverReportFactories(receiverReportFactoriesByMediaType, receiverReportFactoryIdsToDeleteByMediaType);
+
+    updateIceReport(factory.ice, pcReport);
+  });
+}
+
+/**
+ * @param {PeerConnectionReportFactory} factory
+ * @returns {PeerConnectionReport}
+ */
+function updateChrome(factory) {
+  return factory.pc.getStats().then(function (report) {
+    var senderReportFactoriesByMediaType = getSenderReportFactoriesByMediaType(factory);
+    var senderReportFactoryIdsToDeleteByMediaType = getSenderReportFactoryIdsByMediaType(factory);
+    updateSenderReports(factory, report, senderReportFactoryIdsToDeleteByMediaType);
+    deleteSenderOrReceiverReportFactories(senderReportFactoriesByMediaType, senderReportFactoryIdsToDeleteByMediaType);
+
+    var receiverReportFactoriesByMediaType = getReceiverReportFactoriesByMediaType(factory);
+    var receiverReportFactoryIdsToDeleteByMediaType = getReceiverReportFactoryIdsByMediaType(factory);
+    updateReceiverReports(factory, report, receiverReportFactoryIdsToDeleteByMediaType);
+    deleteSenderOrReceiverReportFactories(receiverReportFactoriesByMediaType, receiverReportFactoryIdsToDeleteByMediaType);
+
+    updateIceReport(factory.ice, report);
+  });
+}
+
+module.exports = PeerConnectionReportFactory;
+},{"./icereportfactory":130,"./peerconnectionreport":134,"./receiverreportfactory":137,"./senderreportfactory":144}],136:[function(require,module,exports){
+'use strict';
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var average = require('./average');
+var SenderOrReceiverReport = require('./senderorreceiverreport');
+var sum = require('./sum');
+
+/**
+ * @interface ReceiverSummary
+ * @property {number} bitrate
+ * @property {number} fractionLost - 0–1
+ * @property {number} [jitter] - s (undefined for video tracks in Chrome)
+ */
+
+/**
+ * @extends SenderOrReceiverReport
+ * @property {number} deltaPacketsLost
+ * @property {number} deltaPacketsReceived
+ * @property {number} [fractionLost] - 0–1 (undefined in Firefox)
+ * @property {number} [jitter] - s (undefined for video tracks in Chrome)
+ * @property {number} phonyPacketsLost - 0–1
+ */
+
+var ReceiverReport = function (_SenderOrReceiverRepo) {
+  _inherits(ReceiverReport, _SenderOrReceiverRepo);
+
+  /**
+   * @param {StatsId} id
+   * @param {TrackId} trackId
+   * @param {number} bitrate - bps
+   * @param {number} deltaPacketsLost
+   * @param {number} deltaPacketsReceived
+   * @param {number} [fractionLost] - 0–1 (undefined in Firefox)
+   * @param {number} [jitter] - s (undefined for video tracks in Chrome)
+   */
+  function ReceiverReport(id, trackId, bitrate, deltaPacketsLost, deltaPacketsReceived, fractionLost, jitter) {
+    _classCallCheck(this, ReceiverReport);
+
+    var _this = _possibleConstructorReturn(this, (ReceiverReport.__proto__ || Object.getPrototypeOf(ReceiverReport)).call(this, id, trackId, bitrate));
+
+    var phonyFractionLost = deltaPacketsReceived > 0 ? deltaPacketsLost / deltaPacketsReceived : 0;
+    Object.defineProperties(_this, {
+      deltaPacketsLost: {
+        enumerable: true,
+        value: deltaPacketsLost
+      },
+      deltaPacketsReceived: {
+        enumerable: true,
+        value: deltaPacketsReceived
+      },
+      fractionLost: {
+        enumerable: true,
+        value: fractionLost
+      },
+      jitter: {
+        enumerable: true,
+        value: jitter
+      },
+      phonyFractionLost: {
+        enumerable: true,
+        value: phonyFractionLost
+      }
+    });
+    return _this;
+  }
+
+  /**
+   * Create a {@link ReceiverReport}.
+   * @param {string} trackId
+   * @param {RTCStats} olderStats
+   * @param {RTCStats} newerStats
+   * @returns {ReceiverReport}
+   */
+
+
+  _createClass(ReceiverReport, [{
+    key: 'summarize',
+
+
+    /**
+     * Summarize the {@link ReceiveReport}.
+     * @returns {ReceiverSummary}
+     */
+    value: function summarize() {
+      return {
+        bitrate: this.bitrate,
+        fractionLost: typeof this.fractionLost === 'number' ? this.fractionLost : this.phonyFractionLost,
+        jitter: this.jitter
+      };
+    }
+  }], [{
+    key: 'of',
+    value: function of(trackId, olderStats, newerStats) {
+      if (olderStats.id !== newerStats.id) {
+        throw new Error('RTCStats IDs must match');
+      }
+      var secondsElapsed = (newerStats.timestamp - olderStats.timestamp) / 1000;
+      var deltaBytesReceived = newerStats.bytesReceived - olderStats.bytesReceived;
+      var bitrate = secondsElapsed > 0 ? deltaBytesReceived / secondsElapsed * 8 : 0;
+      var deltaPacketsLost = Math.max(newerStats.packetsLost - olderStats.packetsLost, 0);
+      var deltaPacketsReceived = newerStats.packetsReceived - olderStats.packetsReceived;
+      var fractionLost = newerStats.fractionLost,
+          jitter = newerStats.jitter;
+
+      return new ReceiverReport(olderStats.id, trackId, bitrate, deltaPacketsLost, deltaPacketsReceived, fractionLost, jitter);
+    }
+
+    /**
+     * Summarize {@link ReceiverReport}s by summing and averaging their values.
+     * @param {Array<ReceiverReport>} reports
+     * @returns {ReceiverSummary}
+     */
+
+  }, {
+    key: 'summarize',
+    value: function summarize(reports) {
+      var summaries = reports.map(function (report) {
+        return report.summarize();
+      });
+      var bitrate = sum(summaries.map(function (summary) {
+        return summary.bitrate;
+      }));
+      var fractionLost = average(summaries.map(function (summary) {
+        return summary.fractionLost;
+      }));
+      var jitter = average(summaries.map(function (summary) {
+        return summary.jitter;
+      }));
+      return {
+        bitrate: bitrate,
+        fractionLost: fractionLost,
+        jitter: jitter
+      };
+    }
+  }]);
+
+  return ReceiverReport;
+}(SenderOrReceiverReport);
+
+module.exports = ReceiverReport;
+},{"./average":128,"./senderorreceiverreport":141,"./sum":146}],137:[function(require,module,exports){
+'use strict';
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var ReceiverReport = require('./receiverreport');
+var SenderOrReceiverReportFactory = require('./senderorreceiverreportfactory');
+
+/**
+ * @extends SenderOrReceiverReportFactory
+ * @param {?ReceiverReport} lastReport
+ */
+
+var ReceiverReportFactory = function (_SenderOrReceiverRepo) {
+  _inherits(ReceiverReportFactory, _SenderOrReceiverRepo);
+
+  /**
+   * Construct a {@link ReceiverReportFactory}.
+   * @param {TrackId} trackId
+   * @param {RTCStats} initialStats
+   */
+  function ReceiverReportFactory(trackId, initialStats) {
+    _classCallCheck(this, ReceiverReportFactory);
+
+    var _this = _possibleConstructorReturn(this, (ReceiverReportFactory.__proto__ || Object.getPrototypeOf(ReceiverReportFactory)).call(this, initialStats.id, trackId, initialStats));
+
+    Object.defineProperties(_this, {
+      lastReport: {
+        enumerable: true,
+        value: null,
+        writable: true
+      }
+    });
+    return _this;
+  }
+
+  /**
+   * Create a {@link ReceiverReport}.
+   * @param {TrackId} trackId
+   * @param {RTCStats} newerStats
+   * @returns {ReceiverReport}
+   */
+
+
+  _createClass(ReceiverReportFactory, [{
+    key: 'next',
+    value: function next(trackId, newerStats) {
+      var olderStats = this.lastStats;
+      this.lastStats = newerStats;
+      this.trackId = trackId;
+      var report = ReceiverReport.of(trackId, olderStats, newerStats);
+      this.lastReport = report;
+      return report;
+    }
+  }]);
+
+  return ReceiverReportFactory;
+}(SenderOrReceiverReportFactory);
+
+module.exports = ReceiverReportFactory;
+},{"./receiverreport":136,"./senderorreceiverreportfactory":142}],138:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -26744,7 +29155,7 @@ var RemoteAudioTrackStats = function (_RemoteTrackStats) {
 }(RemoteTrackStats);
 
 module.exports = RemoteAudioTrackStats;
-},{"./remotetrackstats":128}],128:[function(require,module,exports){
+},{"./remotetrackstats":139}],139:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -26791,7 +29202,7 @@ var RemoteTrackStats = function (_TrackStats) {
 }(TrackStats);
 
 module.exports = RemoteTrackStats;
-},{"./trackstats":131}],129:[function(require,module,exports){
+},{"./trackstats":147}],140:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -26854,7 +29265,251 @@ var RemoteVideoTrackStats = function (_RemoteTrackStats) {
 }(RemoteTrackStats);
 
 module.exports = RemoteVideoTrackStats;
-},{"./remotetrackstats":128}],130:[function(require,module,exports){
+},{"./remotetrackstats":139}],141:[function(require,module,exports){
+'use strict';
+
+/**
+ * @property {StatsId} id
+ * @property {TrackId} trackId
+ * @property {number} bitrate - bps
+ */
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var SenderOrReceiverReport =
+/**
+ * Construct a {@link SenderOrReceiverReport}.
+ * @param {StatsId} id
+ * @param {TrackId} trackId
+ * @param {number} bitrate - bps
+ */
+function SenderOrReceiverReport(id, trackId, bitrate) {
+  _classCallCheck(this, SenderOrReceiverReport);
+
+  Object.defineProperties(this, {
+    id: {
+      enumerable: true,
+      value: id
+    },
+    trackId: {
+      enumerable: true,
+      value: trackId
+    },
+    bitrate: {
+      enumerable: true,
+      value: bitrate
+    }
+  });
+};
+
+module.exports = SenderOrReceiverReport;
+},{}],142:[function(require,module,exports){
+'use strict';
+
+/**
+ * @property {StatsId} id
+ * @property {TrackId} trackId
+ * @property {RTCStats} lastStats
+ */
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var SenderOrReceiverReportFactory =
+/**
+ * @param {StatsId} id
+ * @param {TrackId} trackId
+ * @param {RTCStats} initialStats
+ */
+function SenderOrReceiverReportFactory(id, trackId, initialStats) {
+  _classCallCheck(this, SenderOrReceiverReportFactory);
+
+  Object.defineProperties(this, {
+    id: {
+      enumerable: true,
+      value: id,
+      writable: true
+    },
+    trackId: {
+      enumerable: true,
+      value: trackId,
+      writable: true
+    },
+    lastStats: {
+      enumerable: true,
+      value: initialStats,
+      writable: true
+    }
+  });
+};
+
+module.exports = SenderOrReceiverReportFactory;
+},{}],143:[function(require,module,exports){
+/* eslint no-undefined:0 */
+'use strict';
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var average = require('./average');
+var SenderOrReceiverReport = require('./senderorreceiverreport');
+var sum = require('./sum');
+
+/**
+ * @interface SenderSummary
+ * @property {number} bitrate
+ * @property {number} [rtt] - s (undefined in Chrome)
+ */
+
+/**
+ * @extends SenderOrReceiverReport
+ * @property {number} [rtt] - s (undefined in Chrome)
+ */
+
+var SenderReport = function (_SenderOrReceiverRepo) {
+  _inherits(SenderReport, _SenderOrReceiverRepo);
+
+  /**
+   * Construct a {@link SenderReport}.
+   * @param {StatsId} id
+   * @param {TrackId} trackId
+   * @param {number} bitrate - bps
+   * @param {number} [rtt] - s
+   */
+  function SenderReport(id, trackId, bitrate, rtt) {
+    _classCallCheck(this, SenderReport);
+
+    var _this = _possibleConstructorReturn(this, (SenderReport.__proto__ || Object.getPrototypeOf(SenderReport)).call(this, id, trackId, bitrate));
+
+    Object.defineProperties(_this, {
+      rtt: {
+        enumerable: true,
+        value: rtt
+      }
+    });
+    return _this;
+  }
+
+  /**
+   * Create a {@link SenderReport}.
+   * @param {string} trackId
+   * @param {RTCStats} olderStats
+   * @param {RTCStats} newerStats
+   * @param {RTCRemoteInboundRtpStreamStats} [newerRemoteStats]
+   * @returns {SenderReport}
+   */
+
+
+  _createClass(SenderReport, null, [{
+    key: 'of',
+    value: function of(trackId, olderStats, newerStats, newerRemoteStats) {
+      if (olderStats.id !== newerStats.id) {
+        throw new Error('RTCStats IDs must match');
+      }
+      var secondsElapsed = (newerStats.timestamp - olderStats.timestamp) / 1000;
+      var deltaBytesSent = newerStats.bytesSent - olderStats.bytesSent;
+      var bitrate = secondsElapsed > 0 ? deltaBytesSent / secondsElapsed * 8 : 0;
+      var rtt = newerRemoteStats && typeof newerRemoteStats.roundTripTime === 'number' ? newerRemoteStats.roundTripTime / 1000 : undefined;
+      return new SenderReport(olderStats.id, trackId, bitrate, rtt);
+    }
+
+    /**
+     * Summarize {@link SenderReport}s by summing and averaging their values.
+     * @param {Array<SenderReport>} reports
+     * @returns {SenderSummary}
+     */
+
+  }, {
+    key: 'summarize',
+    value: function summarize(reports) {
+      var bitrate = sum(reports.map(function (report) {
+        return report.bitrate;
+      }));
+      var rtt = average(reports.map(function (report) {
+        return report.rtt;
+      }));
+      return {
+        bitrate: bitrate,
+        rtt: rtt
+      };
+    }
+  }]);
+
+  return SenderReport;
+}(SenderOrReceiverReport);
+
+module.exports = SenderReport;
+},{"./average":128,"./senderorreceiverreport":141,"./sum":146}],144:[function(require,module,exports){
+'use strict';
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var SenderOrReceiverReportFactory = require('./senderorreceiverreportfactory');
+var SenderReport = require('./senderreport');
+
+/**
+ * @extends {SenderOrReceiverReportFactory}
+ * @property {?SenderReport} lastReport
+ */
+
+var SenderReportFactory = function (_SenderOrReceiverRepo) {
+  _inherits(SenderReportFactory, _SenderOrReceiverRepo);
+
+  /**
+   * Construct a {@link SenderReportFactory}.
+   * @param {TrackId} trackId
+   * @param {RTCStats} initialStats
+   */
+  function SenderReportFactory(trackId, initialStats) {
+    _classCallCheck(this, SenderReportFactory);
+
+    var _this = _possibleConstructorReturn(this, (SenderReportFactory.__proto__ || Object.getPrototypeOf(SenderReportFactory)).call(this, initialStats.id, trackId, initialStats));
+
+    Object.defineProperties(_this, {
+      lastReport: {
+        enumerable: true,
+        value: null,
+        writable: true
+      }
+    });
+    return _this;
+  }
+
+  /**
+   * @param {TrackId} trackId
+   * @param {RTCStats} newerStats
+   * @param {RTCRemoteInboundRtpStreamStats} [newerRemoteStats]
+   * @returns {SenderReport}
+   */
+
+
+  _createClass(SenderReportFactory, [{
+    key: 'next',
+    value: function next(trackId, newerStats, newerRemoteStats) {
+      var olderStats = this.lastStats;
+      this.lastStats = newerStats;
+      this.trackId = trackId;
+      var report = SenderReport.of(trackId, olderStats, newerStats, newerRemoteStats);
+      this.lastReport = report;
+      return report;
+    }
+  }]);
+
+  return SenderReportFactory;
+}(SenderOrReceiverReportFactory);
+
+module.exports = SenderReportFactory;
+},{"./senderorreceiverreportfactory":142,"./senderreport":143}],145:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -26918,7 +29573,22 @@ function StatsReport(peerConnectionId, statsResponse) {
 };
 
 module.exports = StatsReport;
-},{"./localaudiotrackstats":124,"./localvideotrackstats":126,"./remoteaudiotrackstats":127,"./remotevideotrackstats":129}],131:[function(require,module,exports){
+},{"./localaudiotrackstats":131,"./localvideotrackstats":133,"./remoteaudiotrackstats":138,"./remotevideotrackstats":140}],146:[function(require,module,exports){
+'use strict';
+
+/**
+ * @param {Array<number|undefined>} xs
+ * @returns {number}
+ */
+
+function sum(xs) {
+  return xs.reduce(function (y, x) {
+    return typeof x === 'number' ? x + y : y;
+  }, 0);
+}
+
+module.exports = sum;
+},{}],147:[function(require,module,exports){
 'use strict';
 
 /**
@@ -26978,7 +29648,7 @@ function TrackStats(trackId, statsReport) {
 };
 
 module.exports = TrackStats;
-},{}],132:[function(require,module,exports){
+},{}],148:[function(require,module,exports){
 'use strict';
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -27027,7 +29697,95 @@ var TrackTransceiver = function (_EventEmitter) {
 }(EventEmitter);
 
 module.exports = TrackTransceiver;
-},{"events":156}],133:[function(require,module,exports){
+},{"events":175}],149:[function(require,module,exports){
+'use strict';
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var _require = require('./'),
+    defer = _require.defer;
+
+/**
+ * An {@link AsyncVar} is an "asynchronous variable" which may or may not
+ * contain a value of some type T. You can put a value into the {@link AsyncVar}
+ * with {@link AsyncVar#put}. Callers can take a value out of the
+ * {@link AsyncVar} by queueing up with {@link AsyncVar#take}. N calls to
+ * {@link AsyncVar#take} require N calls to {@link AsyncVar#put} to resolve, and
+ * they resolve in order.
+ */
+
+
+var AsyncVar = function () {
+  /**
+   * Construct an {@link AsyncVar}.
+   */
+  function AsyncVar() {
+    _classCallCheck(this, AsyncVar);
+
+    Object.defineProperties(this, {
+      _deferreds: {
+        value: []
+      },
+      _hasValue: {
+        value: false,
+        writable: true
+      },
+      _value: {
+        value: null,
+        writable: true
+      }
+    });
+  }
+
+  /**
+   * Put a value into the {@link AsyncVar}.
+   * @param {T} value
+   * @returns {this}
+   */
+
+
+  _createClass(AsyncVar, [{
+    key: 'put',
+    value: function put(value) {
+      this._hasValue = true;
+      this._value = value;
+      var deferred = this._deferreds.shift();
+      if (deferred) {
+        deferred.resolve(value);
+      }
+      return this;
+    }
+
+    /**
+     * Take the value out of the {@link AsyncVar}.
+     * @returns {Promise<T>}
+     */
+
+  }, {
+    key: 'take',
+    value: function take() {
+      var _this = this;
+
+      if (this._hasValue && !this._deferreds.length) {
+        this._hasValue = false;
+        return Promise.resolve(this._value);
+      }
+      var deferred = defer();
+      this._deferreds.push(deferred);
+      return deferred.promise.then(function (value) {
+        _this._hasValue = false;
+        return value;
+      });
+    }
+  }]);
+
+  return AsyncVar;
+}();
+
+module.exports = AsyncVar;
+},{"./":153}],150:[function(require,module,exports){
 'use strict';
 
 /**
@@ -27175,7 +29933,7 @@ var CancelablePromise = function () {
 }();
 
 module.exports = CancelablePromise;
-},{}],134:[function(require,module,exports){
+},{}],151:[function(require,module,exports){
 'use strict';
 
 module.exports.DEFAULT_ENVIRONMENT = 'prod';
@@ -27248,7 +30006,7 @@ module.exports.typeErrors = {
     return new TypeError(name + ' must be specified');
   }
 };
-},{}],135:[function(require,module,exports){
+},{}],152:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -27313,7 +30071,7 @@ var Filter = function () {
 }();
 
 module.exports = Filter;
-},{}],136:[function(require,module,exports){
+},{}],153:[function(require,module,exports){
 /* globals mozRTCPeerConnection */
 'use strict';
 
@@ -27364,6 +30122,26 @@ function asLocalTrackPublication(track, sid, unpublish, options) {
  */
 function capitalize(word) {
   return word[0].toUpperCase() + word.slice(1);
+}
+
+/**
+ * Log deprecation warnings for the given events of an EventEmitter.
+ * @param {string} name
+ * @param {EventEmitter} emitter
+ * @param {Map<string, string>} events
+ * @param {Log} log
+ */
+function deprecateEvents(name, emitter, events, log) {
+  var warningsShown = new Set();
+  emitter.on('newListener', function newListener(event) {
+    if (events.has(event) && !warningsShown.has(event)) {
+      log.deprecated(name + '#' + event + ' has been deprecated and scheduled for removal in twilio-video.js@2.0.0.' + (events.get(event) ? ' Use ' + name + '#' + events.get(event) + ' instead.' : ''));
+      warningsShown.add(event);
+    }
+    if (warningsShown.size >= events.size) {
+      emitter.removeListener('newListener', newListener);
+    }
+  });
 }
 
 /**
@@ -27732,16 +30510,44 @@ function validateLocalTrack(track, options) {
 
 /**
  * Use unified plan SDP format on Firefox
- * @returns {?string} SDP format
+ * @param {?SdpSemantics} [sdpSemantics]
+ * @returns {string} SDP format
  */
-function getSdpFormat() {
-  return typeof mozRTCPeerConnection !== 'undefined' ? 'unified' : null;
+function getSdpFormat(sdpSemantics) {
+  return typeof mozRTCPeerConnection !== 'undefined' || sdpSemantics === 'unified-plan' && checkIfSdpSemanticsIsSupported() ? 'unified' : 'planb';
+}
+
+// NOTE(mroberts): We need to cache this result so that we don't create too many
+// RTCPeerConnections.
+var sdpSemanticsIsSupported = void 0;
+
+/**
+ * Check whether or not `sdpSemantics` is supported.
+ * @returns {boolean}
+ */
+function checkIfSdpSemanticsIsSupported() {
+  if (typeof sdpSemanticsIsSupported === 'boolean') {
+    return sdpSemanticsIsSupported;
+  }
+  if (typeof RTCPeerConnection === 'undefined') {
+    sdpSemanticsIsSupported = false;
+    return sdpSemanticsIsSupported;
+  }
+  try {
+    new RTCPeerConnection({ sdpSemantics: 'bogus' });
+    sdpSemanticsIsSupported = false;
+    return sdpSemanticsIsSupported;
+  } catch (error) {
+    sdpSemanticsIsSupported = true;
+    return sdpSemanticsIsSupported;
+  }
 }
 
 exports.constants = constants;
 exports.asLocalTrack = asLocalTrack;
 exports.asLocalTrackPublication = asLocalTrackPublication;
 exports.capitalize = capitalize;
+exports.deprecateEvents = deprecateEvents;
 exports.difference = difference;
 exports.filterObject = filterObject;
 exports.flatMap = flatMap;
@@ -27762,7 +30568,7 @@ exports.trackClass = trackClass;
 exports.trackPublicationClass = trackPublicationClass;
 exports.validateLocalTrack = validateLocalTrack;
 exports.getSdpFormat = getSdpFormat;
-},{"./constants":134}],137:[function(require,module,exports){
+},{"./constants":151}],154:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -28052,7 +30858,7 @@ function reconnect(publisher, token, sdkName, sdkVersion, options) {
 
 module.exports = InsightsPublisher;
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"..":136,"events":156,"ws":152}],138:[function(require,module,exports){
+},{"..":153,"events":175,"ws":171}],155:[function(require,module,exports){
 // TODO(mroberts): This should be described as implementing some
 // InsightsPublisher interface.
 'use strict';
@@ -28109,7 +30915,7 @@ var InsightsPublisher = function () {
 }();
 
 module.exports = InsightsPublisher;
-},{}],139:[function(require,module,exports){
+},{}],156:[function(require,module,exports){
 /* eslint new-cap:0, no-console:0 */
 'use strict';
 
@@ -28122,6 +30928,18 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 var constants = require('./constants');
 var DEFAULT_LOG_LEVEL = constants.DEFAULT_LOG_LEVEL;
 var E = require('./constants').typeErrors;
+
+var deprecationWarningsByComponentConstructor = void 0;
+
+function getDeprecationWarnings(componentConstructor) {
+  deprecationWarningsByComponentConstructor = deprecationWarningsByComponentConstructor || new Map();
+  if (deprecationWarningsByComponentConstructor.has(componentConstructor)) {
+    return deprecationWarningsByComponentConstructor.get(componentConstructor);
+  }
+  var deprecationWarnings = new Set();
+  deprecationWarningsByComponentConstructor.set(componentConstructor, deprecationWarnings);
+  return deprecationWarnings;
+}
 
 /**
  * Selectively outputs messages to console.log based on specified minimum module
@@ -28157,8 +30975,8 @@ var Log = function () {
 
     /* istanbul ignore next */
     Object.defineProperties(this, {
-      _deprecationWarnings: {
-        value: new Set()
+      _component: {
+        value: component
       },
       _logLevels: {
         value: logLevels
@@ -28265,10 +31083,11 @@ var Log = function () {
   }, {
     key: 'deprecated',
     value: function deprecated(deprecationWarning) {
-      if (this._deprecationWarnings.has(deprecationWarning)) {
+      var deprecationWarnings = getDeprecationWarnings(this._component.constructor);
+      if (deprecationWarnings.has(deprecationWarning)) {
         return this;
       }
-      this._deprecationWarnings.add(deprecationWarning);
+      deprecationWarnings.add(deprecationWarning);
       return this.warn(deprecationWarning);
     }
 
@@ -28398,7 +31217,7 @@ function validateLogLevels(levels) {
 }
 
 module.exports = Log;
-},{"./constants":134}],140:[function(require,module,exports){
+},{"./constants":151}],157:[function(require,module,exports){
 'use strict';
 
 var difference = require('../').difference;
@@ -28664,7 +31483,7 @@ exports.getMediaSections = getMediaSections;
 exports.setBitrateParameters = setBitrateParameters;
 exports.setCodecPreferences = setCodecPreferences;
 exports.setSimulcast = setSimulcast;
-},{"../":136,"./simulcast":142}],141:[function(require,module,exports){
+},{"../":153,"./simulcast":159}],158:[function(require,module,exports){
 'use strict';
 
 var RTCSessionDescription = require('@twilio/webrtc').RTCSessionDescription;
@@ -28854,11 +31673,11 @@ function deleteRtpmapAttributesForRtxPt(mediaSection, rtxPt) {
  * @returns {string} newMediaSection
  */
 function addFmtpAttributeForRtxPt(mediaSection, rtxPt, pt) {
-  return mediaSection + 'a=fmtp:' + rtxPt + ' apt=' + pt + '\r\n';
+  return mediaSection.endsWith('\r\n') ? mediaSection + 'a=fmtp:' + rtxPt + ' apt=' + pt + '\r\n' : mediaSection + '\r\na=fmtp:' + rtxPt + ' apt=' + pt;
 }
 
 module.exports = workaround;
-},{"./":140,"@twilio/webrtc":37}],142:[function(require,module,exports){
+},{"./":157,"@twilio/webrtc":37}],159:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -28973,15 +31792,16 @@ var TrackAttributes = function () {
 
     /**
      * Construct the SDP lines for the {@link TrackAttributes}.
+     * @param {boolean} [excludeRtx=false]
      * @returns {Array<string>} Array of SDP lines
      */
 
   }, {
     key: 'toSdpLines',
-    value: function toSdpLines() {
+    value: function toSdpLines(excludeRtx) {
       var _this = this;
 
-      var rtxPairs = Array.from(this.rtxPairs.entries()).map(function (rtxPair) {
+      var rtxPairs = excludeRtx ? [] : Array.from(this.rtxPairs.entries()).map(function (rtxPair) {
         return rtxPair.reverse();
       });
 
@@ -29108,8 +31928,9 @@ function setSimulcastInMediaSection(section, trackIdsToAttributes) {
   var relevantTrackAttributes = flatMap(relevantTrackIds, function (trackId) {
     return trackIdsToAttributes.get(trackId);
   });
+  var excludeRtx = !section.match(/a=rtpmap:[0-9]+ rtx/);
   var relevantSdpLines = flatMap(relevantTrackAttributes, function (trackAttributes) {
-    return trackAttributes.toSdpLines();
+    return trackAttributes.toSdpLines(excludeRtx);
   });
 
   // Add the simulcast SSRC SDP lines to the media section. The Set ensures
@@ -29140,7 +31961,7 @@ function setSimulcastInMediaSection(section, trackIdsToAttributes) {
  */
 
 module.exports = setSimulcastInMediaSection;
-},{"../":136}],143:[function(require,module,exports){
+},{"../":153}],160:[function(require,module,exports){
 'use strict';
 
 /**
@@ -29183,7 +32004,7 @@ var IdentityTrackMatcher = function () {
 }();
 
 module.exports = IdentityTrackMatcher;
-},{}],144:[function(require,module,exports){
+},{}],161:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -29248,7 +32069,7 @@ var MIDTrackMatcher = function () {
 }();
 
 module.exports = MIDTrackMatcher;
-},{"../":140}],145:[function(require,module,exports){
+},{"../":157}],162:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -29390,7 +32211,7 @@ var OrderedTrackMatcher = function () {
 }();
 
 module.exports = OrderedTrackMatcher;
-},{"../":140,"../../":136}],146:[function(require,module,exports){
+},{"../":157,"../../":153}],163:[function(require,module,exports){
 /* globals RTCPeerConnection, webkitRTCPeerConnection, mozRTCPeerConnection, navigator */
 'use strict';
 
@@ -29421,7 +32242,7 @@ function isSupported() {
 }
 
 module.exports = isSupported;
-},{"./":136}],147:[function(require,module,exports){
+},{"./":153}],164:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -29582,7 +32403,7 @@ var TimeoutPromise = function (_EventEmitter) {
  */
 
 module.exports = TimeoutPromise;
-},{"./":136,"events":156}],148:[function(require,module,exports){
+},{"./":153,"events":175}],165:[function(require,module,exports){
 'use strict';
 
 // NOTE: Do not edit this file. This code is auto-generated. Contact the
@@ -30209,6 +33030,121 @@ exports.RoomRoomExistsError = RoomRoomExistsError;
 Object.defineProperty(TwilioErrorByCode, 53113, { value: RoomRoomExistsError });
 
 /**
+ * @class RoomInvalidParametersError
+ * @classdesc Raised in the REST API when one or more Room creation parameter is incompatible with the Room type.
+ * @extends TwilioError
+ * @property {number} code - 53114
+ * @property {string} message - 'Room creation parameter(s) incompatible with the Room type'
+ */
+
+var RoomInvalidParametersError = function (_TwilioError27) {
+  _inherits(RoomInvalidParametersError, _TwilioError27);
+
+  function RoomInvalidParametersError() {
+    _classCallCheck(this, RoomInvalidParametersError);
+
+    return _possibleConstructorReturn(this, (RoomInvalidParametersError.__proto__ || Object.getPrototypeOf(RoomInvalidParametersError)).call(this, 53114, 'Room creation parameter(s) incompatible with the Room type'));
+  }
+
+  return RoomInvalidParametersError;
+}(TwilioError);
+
+exports.RoomInvalidParametersError = RoomInvalidParametersError;
+Object.defineProperty(TwilioErrorByCode, 53114, { value: RoomInvalidParametersError });
+
+/**
+ * @class RoomMediaRegionInvalidError
+ * @classdesc Raised in the REST API when MediaRegion is set to an invalid value.
+ * @extends TwilioError
+ * @property {number} code - 53115
+ * @property {string} message - 'MediaRegion is invalid'
+ */
+
+var RoomMediaRegionInvalidError = function (_TwilioError28) {
+  _inherits(RoomMediaRegionInvalidError, _TwilioError28);
+
+  function RoomMediaRegionInvalidError() {
+    _classCallCheck(this, RoomMediaRegionInvalidError);
+
+    return _possibleConstructorReturn(this, (RoomMediaRegionInvalidError.__proto__ || Object.getPrototypeOf(RoomMediaRegionInvalidError)).call(this, 53115, 'MediaRegion is invalid'));
+  }
+
+  return RoomMediaRegionInvalidError;
+}(TwilioError);
+
+exports.RoomMediaRegionInvalidError = RoomMediaRegionInvalidError;
+Object.defineProperty(TwilioErrorByCode, 53115, { value: RoomMediaRegionInvalidError });
+
+/**
+ * @class RoomMediaRegionUnavailableError
+ * @classdesc Raised in the REST API when MediaRegion is set to a valid value but no media servers are available.
+ * @extends TwilioError
+ * @property {number} code - 53116
+ * @property {string} message - 'There are no media servers available in the MediaRegion'
+ */
+
+var RoomMediaRegionUnavailableError = function (_TwilioError29) {
+  _inherits(RoomMediaRegionUnavailableError, _TwilioError29);
+
+  function RoomMediaRegionUnavailableError() {
+    _classCallCheck(this, RoomMediaRegionUnavailableError);
+
+    return _possibleConstructorReturn(this, (RoomMediaRegionUnavailableError.__proto__ || Object.getPrototypeOf(RoomMediaRegionUnavailableError)).call(this, 53116, 'There are no media servers available in the MediaRegion'));
+  }
+
+  return RoomMediaRegionUnavailableError;
+}(TwilioError);
+
+exports.RoomMediaRegionUnavailableError = RoomMediaRegionUnavailableError;
+Object.defineProperty(TwilioErrorByCode, 53116, { value: RoomMediaRegionUnavailableError });
+
+/**
+ * @class RoomSubscriptionOperationNotSupportedError
+ * @classdesc Raised whenever the subscription operation requested is not supported for the Room type.
+ * @extends TwilioError
+ * @property {number} code - 53117
+ * @property {string} message - 'The subscription operation requested is not supported for the Room type'
+ */
+
+var RoomSubscriptionOperationNotSupportedError = function (_TwilioError30) {
+  _inherits(RoomSubscriptionOperationNotSupportedError, _TwilioError30);
+
+  function RoomSubscriptionOperationNotSupportedError() {
+    _classCallCheck(this, RoomSubscriptionOperationNotSupportedError);
+
+    return _possibleConstructorReturn(this, (RoomSubscriptionOperationNotSupportedError.__proto__ || Object.getPrototypeOf(RoomSubscriptionOperationNotSupportedError)).call(this, 53117, 'The subscription operation requested is not supported for the Room type'));
+  }
+
+  return RoomSubscriptionOperationNotSupportedError;
+}(TwilioError);
+
+exports.RoomSubscriptionOperationNotSupportedError = RoomSubscriptionOperationNotSupportedError;
+Object.defineProperty(TwilioErrorByCode, 53117, { value: RoomSubscriptionOperationNotSupportedError });
+
+/**
+ * @class RoomCompletedError
+ * @classdesc Raised whenever a Room is completed via the REST API.
+ * @extends TwilioError
+ * @property {number} code - 53118
+ * @property {string} message - 'Room completed'
+ */
+
+var RoomCompletedError = function (_TwilioError31) {
+  _inherits(RoomCompletedError, _TwilioError31);
+
+  function RoomCompletedError() {
+    _classCallCheck(this, RoomCompletedError);
+
+    return _possibleConstructorReturn(this, (RoomCompletedError.__proto__ || Object.getPrototypeOf(RoomCompletedError)).call(this, 53118, 'Room completed'));
+  }
+
+  return RoomCompletedError;
+}(TwilioError);
+
+exports.RoomCompletedError = RoomCompletedError;
+Object.defineProperty(TwilioErrorByCode, 53118, { value: RoomCompletedError });
+
+/**
  * @class ParticipantIdentityInvalidError
  * @classdesc Raised whenever a Participant identity is invalid, and the scenario is not covered by a more specific error code.
  * @extends TwilioError
@@ -30216,8 +33152,8 @@ Object.defineProperty(TwilioErrorByCode, 53113, { value: RoomRoomExistsError });
  * @property {string} message - 'Participant identity is invalid'
  */
 
-var ParticipantIdentityInvalidError = function (_TwilioError27) {
-  _inherits(ParticipantIdentityInvalidError, _TwilioError27);
+var ParticipantIdentityInvalidError = function (_TwilioError32) {
+  _inherits(ParticipantIdentityInvalidError, _TwilioError32);
 
   function ParticipantIdentityInvalidError() {
     _classCallCheck(this, ParticipantIdentityInvalidError);
@@ -30239,8 +33175,8 @@ Object.defineProperty(TwilioErrorByCode, 53200, { value: ParticipantIdentityInva
  * @property {string} message - 'Participant identity is too long'
  */
 
-var ParticipantIdentityTooLongError = function (_TwilioError28) {
-  _inherits(ParticipantIdentityTooLongError, _TwilioError28);
+var ParticipantIdentityTooLongError = function (_TwilioError33) {
+  _inherits(ParticipantIdentityTooLongError, _TwilioError33);
 
   function ParticipantIdentityTooLongError() {
     _classCallCheck(this, ParticipantIdentityTooLongError);
@@ -30262,8 +33198,8 @@ Object.defineProperty(TwilioErrorByCode, 53201, { value: ParticipantIdentityTooL
  * @property {string} message - 'Participant identity contains invalid characters'
  */
 
-var ParticipantIdentityCharsInvalidError = function (_TwilioError29) {
-  _inherits(ParticipantIdentityCharsInvalidError, _TwilioError29);
+var ParticipantIdentityCharsInvalidError = function (_TwilioError34) {
+  _inherits(ParticipantIdentityCharsInvalidError, _TwilioError34);
 
   function ParticipantIdentityCharsInvalidError() {
     _classCallCheck(this, ParticipantIdentityCharsInvalidError);
@@ -30285,8 +33221,8 @@ Object.defineProperty(TwilioErrorByCode, 53202, { value: ParticipantIdentityChar
  * @property {string} message - 'Participant has too many Tracks'
  */
 
-var ParticipantMaxTracksExceededError = function (_TwilioError30) {
-  _inherits(ParticipantMaxTracksExceededError, _TwilioError30);
+var ParticipantMaxTracksExceededError = function (_TwilioError35) {
+  _inherits(ParticipantMaxTracksExceededError, _TwilioError35);
 
   function ParticipantMaxTracksExceededError() {
     _classCallCheck(this, ParticipantMaxTracksExceededError);
@@ -30308,8 +33244,8 @@ Object.defineProperty(TwilioErrorByCode, 53203, { value: ParticipantMaxTracksExc
  * @property {string} message - 'Participant not found'
  */
 
-var ParticipantNotFoundError = function (_TwilioError31) {
-  _inherits(ParticipantNotFoundError, _TwilioError31);
+var ParticipantNotFoundError = function (_TwilioError36) {
+  _inherits(ParticipantNotFoundError, _TwilioError36);
 
   function ParticipantNotFoundError() {
     _classCallCheck(this, ParticipantNotFoundError);
@@ -30331,8 +33267,8 @@ Object.defineProperty(TwilioErrorByCode, 53204, { value: ParticipantNotFoundErro
  * @property {string} message - 'Participant disconnected because of duplicate identity'
  */
 
-var ParticipantDuplicateIdentityError = function (_TwilioError32) {
-  _inherits(ParticipantDuplicateIdentityError, _TwilioError32);
+var ParticipantDuplicateIdentityError = function (_TwilioError37) {
+  _inherits(ParticipantDuplicateIdentityError, _TwilioError37);
 
   function ParticipantDuplicateIdentityError() {
     _classCallCheck(this, ParticipantDuplicateIdentityError);
@@ -30354,8 +33290,8 @@ Object.defineProperty(TwilioErrorByCode, 53205, { value: ParticipantDuplicateIde
  * @property {string} message - 'Track is invalid'
  */
 
-var TrackInvalidError = function (_TwilioError33) {
-  _inherits(TrackInvalidError, _TwilioError33);
+var TrackInvalidError = function (_TwilioError38) {
+  _inherits(TrackInvalidError, _TwilioError38);
 
   function TrackInvalidError() {
     _classCallCheck(this, TrackInvalidError);
@@ -30377,8 +33313,8 @@ Object.defineProperty(TwilioErrorByCode, 53300, { value: TrackInvalidError });
  * @property {string} message - 'Track name is invalid'
  */
 
-var TrackNameInvalidError = function (_TwilioError34) {
-  _inherits(TrackNameInvalidError, _TwilioError34);
+var TrackNameInvalidError = function (_TwilioError39) {
+  _inherits(TrackNameInvalidError, _TwilioError39);
 
   function TrackNameInvalidError() {
     _classCallCheck(this, TrackNameInvalidError);
@@ -30400,8 +33336,8 @@ Object.defineProperty(TwilioErrorByCode, 53301, { value: TrackNameInvalidError }
  * @property {string} message - 'Track name is too long'
  */
 
-var TrackNameTooLongError = function (_TwilioError35) {
-  _inherits(TrackNameTooLongError, _TwilioError35);
+var TrackNameTooLongError = function (_TwilioError40) {
+  _inherits(TrackNameTooLongError, _TwilioError40);
 
   function TrackNameTooLongError() {
     _classCallCheck(this, TrackNameTooLongError);
@@ -30423,8 +33359,8 @@ Object.defineProperty(TwilioErrorByCode, 53302, { value: TrackNameTooLongError }
  * @property {string} message - 'Track name contains invalid characters'
  */
 
-var TrackNameCharsInvalidError = function (_TwilioError36) {
-  _inherits(TrackNameCharsInvalidError, _TwilioError36);
+var TrackNameCharsInvalidError = function (_TwilioError41) {
+  _inherits(TrackNameCharsInvalidError, _TwilioError41);
 
   function TrackNameCharsInvalidError() {
     _classCallCheck(this, TrackNameCharsInvalidError);
@@ -30446,8 +33382,8 @@ Object.defineProperty(TwilioErrorByCode, 53303, { value: TrackNameCharsInvalidEr
  * @property {string} message - 'Track name is duplicated'
  */
 
-var TrackNameIsDuplicatedError = function (_TwilioError37) {
-  _inherits(TrackNameIsDuplicatedError, _TwilioError37);
+var TrackNameIsDuplicatedError = function (_TwilioError42) {
+  _inherits(TrackNameIsDuplicatedError, _TwilioError42);
 
   function TrackNameIsDuplicatedError() {
     _classCallCheck(this, TrackNameIsDuplicatedError);
@@ -30462,6 +33398,29 @@ exports.TrackNameIsDuplicatedError = TrackNameIsDuplicatedError;
 Object.defineProperty(TwilioErrorByCode, 53304, { value: TrackNameIsDuplicatedError });
 
 /**
+ * @class TrackServerTrackCapacityReachedError
+ * @classdesc The server does not have enough resources available to create a new Track.
+ * @extends TwilioError
+ * @property {number} code - 53305
+ * @property {string} message - 'The server has reached capacity and cannot fulfill this request.'
+ */
+
+var TrackServerTrackCapacityReachedError = function (_TwilioError43) {
+  _inherits(TrackServerTrackCapacityReachedError, _TwilioError43);
+
+  function TrackServerTrackCapacityReachedError() {
+    _classCallCheck(this, TrackServerTrackCapacityReachedError);
+
+    return _possibleConstructorReturn(this, (TrackServerTrackCapacityReachedError.__proto__ || Object.getPrototypeOf(TrackServerTrackCapacityReachedError)).call(this, 53305, 'The server has reached capacity and cannot fulfill this request.'));
+  }
+
+  return TrackServerTrackCapacityReachedError;
+}(TwilioError);
+
+exports.TrackServerTrackCapacityReachedError = TrackServerTrackCapacityReachedError;
+Object.defineProperty(TwilioErrorByCode, 53305, { value: TrackServerTrackCapacityReachedError });
+
+/**
  * @class MediaClientLocalDescFailedError
  * @classdesc Raised whenever a Client is unable to create or apply a local media description.
  * @extends TwilioError
@@ -30469,8 +33428,8 @@ Object.defineProperty(TwilioErrorByCode, 53304, { value: TrackNameIsDuplicatedEr
  * @property {string} message - 'Client is unable to create or apply a local media description'
  */
 
-var MediaClientLocalDescFailedError = function (_TwilioError38) {
-  _inherits(MediaClientLocalDescFailedError, _TwilioError38);
+var MediaClientLocalDescFailedError = function (_TwilioError44) {
+  _inherits(MediaClientLocalDescFailedError, _TwilioError44);
 
   function MediaClientLocalDescFailedError() {
     _classCallCheck(this, MediaClientLocalDescFailedError);
@@ -30492,8 +33451,8 @@ Object.defineProperty(TwilioErrorByCode, 53400, { value: MediaClientLocalDescFai
  * @property {string} message - 'Server is unable to create or apply a local media description'
  */
 
-var MediaServerLocalDescFailedError = function (_TwilioError39) {
-  _inherits(MediaServerLocalDescFailedError, _TwilioError39);
+var MediaServerLocalDescFailedError = function (_TwilioError45) {
+  _inherits(MediaServerLocalDescFailedError, _TwilioError45);
 
   function MediaServerLocalDescFailedError() {
     _classCallCheck(this, MediaServerLocalDescFailedError);
@@ -30515,8 +33474,8 @@ Object.defineProperty(TwilioErrorByCode, 53401, { value: MediaServerLocalDescFai
  * @property {string} message - 'Client is unable to apply a remote media description'
  */
 
-var MediaClientRemoteDescFailedError = function (_TwilioError40) {
-  _inherits(MediaClientRemoteDescFailedError, _TwilioError40);
+var MediaClientRemoteDescFailedError = function (_TwilioError46) {
+  _inherits(MediaClientRemoteDescFailedError, _TwilioError46);
 
   function MediaClientRemoteDescFailedError() {
     _classCallCheck(this, MediaClientRemoteDescFailedError);
@@ -30538,8 +33497,8 @@ Object.defineProperty(TwilioErrorByCode, 53402, { value: MediaClientRemoteDescFa
  * @property {string} message - 'Server is unable to apply a remote media description'
  */
 
-var MediaServerRemoteDescFailedError = function (_TwilioError41) {
-  _inherits(MediaServerRemoteDescFailedError, _TwilioError41);
+var MediaServerRemoteDescFailedError = function (_TwilioError47) {
+  _inherits(MediaServerRemoteDescFailedError, _TwilioError47);
 
   function MediaServerRemoteDescFailedError() {
     _classCallCheck(this, MediaServerRemoteDescFailedError);
@@ -30561,8 +33520,8 @@ Object.defineProperty(TwilioErrorByCode, 53403, { value: MediaServerRemoteDescFa
  * @property {string} message - 'No supported codec'
  */
 
-var MediaNoSupportedCodecError = function (_TwilioError42) {
-  _inherits(MediaNoSupportedCodecError, _TwilioError42);
+var MediaNoSupportedCodecError = function (_TwilioError48) {
+  _inherits(MediaNoSupportedCodecError, _TwilioError48);
 
   function MediaNoSupportedCodecError() {
     _classCallCheck(this, MediaNoSupportedCodecError);
@@ -30578,14 +33537,14 @@ Object.defineProperty(TwilioErrorByCode, 53404, { value: MediaNoSupportedCodecEr
 
 /**
  * @class MediaConnectionError
- * @classdesc Raised by the Client whenever a media connection fails.
+ * @classdesc Raised by the Client or Server whenever a media connection fails.
  * @extends TwilioError
  * @property {number} code - 53405
  * @property {string} message - 'Media connection failed'
  */
 
-var MediaConnectionError = function (_TwilioError43) {
-  _inherits(MediaConnectionError, _TwilioError43);
+var MediaConnectionError = function (_TwilioError49) {
+  _inherits(MediaConnectionError, _TwilioError49);
 
   function MediaConnectionError() {
     _classCallCheck(this, MediaConnectionError);
@@ -30607,8 +33566,8 @@ Object.defineProperty(TwilioErrorByCode, 53405, { value: MediaConnectionError })
  * @property {string} message - 'Unable to acquire configuration'
  */
 
-var ConfigurationAcquireFailedError = function (_TwilioError44) {
-  _inherits(ConfigurationAcquireFailedError, _TwilioError44);
+var ConfigurationAcquireFailedError = function (_TwilioError50) {
+  _inherits(ConfigurationAcquireFailedError, _TwilioError50);
 
   function ConfigurationAcquireFailedError() {
     _classCallCheck(this, ConfigurationAcquireFailedError);
@@ -30630,8 +33589,8 @@ Object.defineProperty(TwilioErrorByCode, 53500, { value: ConfigurationAcquireFai
  * @property {string} message - 'Unable to acquire TURN credentials'
  */
 
-var ConfigurationAcquireTurnFailedError = function (_TwilioError45) {
-  _inherits(ConfigurationAcquireTurnFailedError, _TwilioError45);
+var ConfigurationAcquireTurnFailedError = function (_TwilioError51) {
+  _inherits(ConfigurationAcquireTurnFailedError, _TwilioError51);
 
   function ConfigurationAcquireTurnFailedError() {
     _classCallCheck(this, ConfigurationAcquireTurnFailedError);
@@ -30644,7 +33603,7 @@ var ConfigurationAcquireTurnFailedError = function (_TwilioError45) {
 
 exports.ConfigurationAcquireTurnFailedError = ConfigurationAcquireTurnFailedError;
 Object.defineProperty(TwilioErrorByCode, 53501, { value: ConfigurationAcquireTurnFailedError });
-},{"./twilioerror":149}],149:[function(require,module,exports){
+},{"./twilioerror":166}],166:[function(require,module,exports){
 'use strict';
 
 /**
@@ -30716,7 +33675,7 @@ var TwilioError = function (_Error) {
 }(Error);
 
 module.exports = TwilioError;
-},{}],150:[function(require,module,exports){
+},{}],167:[function(require,module,exports){
 /* globals webkitAudioContext, AudioContext */
 'use strict';
 
@@ -30815,31 +33774,172 @@ var AudioContextFactory = function () {
 }();
 
 module.exports = new AudioContextFactory();
-},{}],151:[function(require,module,exports){
+},{}],168:[function(require,module,exports){
+'use strict';
+
+/**
+ * Return a Promise that resolves after `timeout` milliseconds.
+ * @param {?number} [timeout=0]
+ * @returns {Promise<void>}
+ */
+
+function delay(timeout) {
+  timeout = typeof timeout === 'number' ? timeout : 0;
+  return new Promise(function (resolve) {
+    return setTimeout(resolve, timeout);
+  });
+}
+
+/**
+ * Attempt to detect silence. The Promise returned by this function returns
+ * false as soon as audio is detected or true after `timeout` milliseconds.
+ * @param {AudioContext} audioContext
+ * @param {MediaStream} stream
+ * @param {?number} [timeout=250]
+ * @returns {Promise<boolean>}
+ */
+function detectSilence(audioContext, stream, timeout) {
+  timeout = typeof timeout === 'number' ? timeout : 250;
+
+  var source = audioContext.createMediaStreamSource(stream);
+  var analyser = audioContext.createAnalyser();
+  analyser.fftSize = 2048;
+  source.connect(analyser);
+
+  var samples = new Uint8Array(analyser.fftSize);
+
+  var timeoutDidFire = false;
+  setTimeout(function () {
+    timeoutDidFire = true;
+  }, timeout);
+
+  /**
+   * We can't use async/await yet, so I need to factor this out.
+   * @returns {Promise<boolean>}
+   */
+  function doDetectSilence() {
+    if (timeoutDidFire) {
+      return Promise.resolve(true);
+    }
+    analyser.getByteTimeDomainData(samples);
+    return samples.some(function (sample) {
+      return sample;
+    }) ? Promise.resolve(false) : delay().then(doDetectSilence);
+  }
+
+  return doDetectSilence().then(function (isSilent) {
+    source.disconnect();
+    return isSilent;
+  }, function (error) {
+    source.disconnect();
+    throw error;
+  });
+}
+
+module.exports = detectSilence;
+},{}],169:[function(require,module,exports){
+'use strict';
+
+var detectSilence = require('./detectsilence');
+
+/**
+ * This function attempts to workaround WebKit Bug 180748. It does so by
+ *
+ *   1. Calling `getUserMedia`, and
+ *   2. Checking to see if the resulting MediaStream is silent.
+ *   3. If so, repeat Step 1; otherwise, return the MediaStream.
+ *
+ * The function only repeats up to `n` times, and it only waits `timeout`
+ * milliseconds when detecting silence. Assuming `getUserMedia` is
+ * instantaneous, in the best case, this function returns a Promise that
+ * resolves immediately; in the worst case, this function returns a Promise that
+ * resolves in `n` * `timeout` milliseconds.
+ *
+ * @param {Log} log
+ * @param {function(MediaStreamConstraints): Promise<MediaStream>} getUserMedia
+ * @param {MediaStreamConstraints} constraints
+ * @param {number} [n=3]
+ * @param {number} [timeout=250]
+ * @returns Promise<MediaStream>
+ */
+function workaround(log, getUserMedia, constraints, n, timeout) {
+  n = typeof n === 'number' ? n : 3;
+  var retry = 0;
+
+  // NOTE(mroberts): We have to delay require-ing AudioContextFactory, because
+  // it exports a default instance whose constructor calls Object.assign.
+  var AudioContextFactory = require('./audiocontext');
+  var holder = {};
+  var audioContext = AudioContextFactory.getOrCreate(holder);
+
+  /**
+   * We can't use async/await yet, so I need to factor this out.
+   * @returns {Promise<MediaStream>}
+   */
+  function doWorkaround() {
+    return getUserMedia(constraints).then(function (stream) {
+      var isSilentPromise = constraints.audio ? detectSilence(audioContext, stream, timeout).catch(function () {
+        return true;
+      }) : Promise.resolve(false);
+      return isSilentPromise.then(function (isSilent) {
+        if (!isSilent) {
+          log.info('Got a non-silent audio MediaStreamTrack; returning it.');
+          return stream;
+        } else if (n <= 0) {
+          log.warn('Got a silent audio MediaStreamTrack. Normally we would try \
+to get a new one, but we\'ve run out of retries; returning it anyway.');
+          return stream;
+        }
+        log.warn('Got a silent audio MediaStreamTrack. Stopping all MediaStreamTracks and calling getUserMedia again. This is retry #' + ++retry + '.');
+        stream.getTracks().forEach(function (track) {
+          return track.stop();
+        });
+        n--;
+        return doWorkaround();
+      });
+    });
+  }
+
+  return doWorkaround().then(function (stream) {
+    AudioContextFactory.release(holder);
+    return stream;
+  }, function (error) {
+    AudioContextFactory.release(holder);
+    throw error;
+  });
+}
+
+module.exports = workaround;
+},{"./audiocontext":167,"./detectsilence":168}],170:[function(require,module,exports){
 module.exports={
-  "_from": "twilio-video@^1.3.0",
-  "_id": "twilio-video@1.10.0",
+  "_args": [
+    [
+      "twilio-video@1.14.2",
+      "/Users/michael/Projects/vetsdirect/resources/example/mediadevices-camera-selection"
+    ]
+  ],
+  "_from": "twilio-video@1.14.2",
+  "_id": "twilio-video@1.14.2",
   "_inBundle": false,
-  "_integrity": "sha512-4pilXr7V0/hTwhhBeaqfuK4lCYj8moy5FYPNrPQN2mbIBuXL71Nza6Z5hwMZiy6L7O9OK3PXbywtZVbg02hIjA==",
+  "_integrity": "sha512-aWQjpTfFDtiPlaAIbjEoV0CfwA825POCSlTcbwTsRmVI9pLYCqdCvMfyKr/qHb3vWVLbTuuKA6NMkowvQU3Tgw==",
   "_location": "/twilio-video",
   "_phantomChildren": {},
   "_requested": {
-    "type": "range",
+    "type": "version",
     "registry": true,
-    "raw": "twilio-video@^1.3.0",
+    "raw": "twilio-video@1.14.2",
     "name": "twilio-video",
     "escapedName": "twilio-video",
-    "rawSpec": "^1.3.0",
+    "rawSpec": "1.14.2",
     "saveSpec": null,
-    "fetchSpec": "^1.3.0"
+    "fetchSpec": "1.14.2"
   },
   "_requiredBy": [
     "/"
   ],
-  "_resolved": "https://registry.npmjs.org/twilio-video/-/twilio-video-1.10.0.tgz",
-  "_shasum": "5345f7b664a815a0fc35b99820cdfe19984ae56f",
-  "_spec": "twilio-video@^1.3.0",
-  "_where": "/Users/pnash/projects/mediadevices-camera-selection",
+  "_resolved": "https://registry.npmjs.org/twilio-video/-/twilio-video-1.14.2.tgz",
+  "_spec": "1.14.2",
+  "_where": "/Users/michael/Projects/vetsdirect/resources/example/mediadevices-camera-selection",
   "author": {
     "name": "Mark Andrus Roberts",
     "email": "mroberts@twilio.com"
@@ -30851,7 +33951,6 @@ module.exports={
   "bugs": {
     "url": "https://github.com/twilio/twilio-video.js/issues"
   },
-  "bundleDependencies": false,
   "contributors": [
     {
       "name": "Ryan Rowland",
@@ -30864,11 +33963,10 @@ module.exports={
   ],
   "dependencies": {
     "@twilio/sip.js": "^0.7.7",
-    "@twilio/webrtc": "github:twilio/twilio-webrtc.js#2.0.1-rc1",
+    "@twilio/webrtc": "^2.1.4",
     "ws": "^3.3.1",
     "xmlhttprequest": "^1.8.0"
   },
-  "deprecated": false,
   "description": "Twilio Video JavaScript library",
   "devDependencies": {
     "@types/express": "^4.11.0",
@@ -30978,23 +34076,23 @@ module.exports={
     "test:unit": "mocha ./test/unit/index.js"
   },
   "title": "Twilio Video",
-  "version": "1.10.0"
+  "version": "1.14.2"
 }
 
-},{}],152:[function(require,module,exports){
+},{}],171:[function(require,module,exports){
 module.exports = WebSocket;
 
-},{}],153:[function(require,module,exports){
+},{}],172:[function(require,module,exports){
 exports.XMLHttpRequest = XMLHttpRequest;
 
-},{}],154:[function(require,module,exports){
+},{}],173:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],155:[function(require,module,exports){
+},{}],174:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -31584,7 +34682,7 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":154,"_process":55,"inherits":54}],156:[function(require,module,exports){
+},{"./support/isBuffer":173,"_process":55,"inherits":54}],175:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -32109,7 +35207,7 @@ function functionBindPolyfill(context) {
   };
 }
 
-},{}],157:[function(require,module,exports){
+},{}],176:[function(require,module,exports){
 'use strict';
 
 var Video = require('twilio-video');
@@ -32327,4 +35425,4 @@ function leaveRoomIfJoined() {
   }
 }
 
-},{"twilio-video":67}]},{},[157]);
+},{"twilio-video":68}]},{},[176]);
